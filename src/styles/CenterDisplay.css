@@ -1,0 +1,76 @@
+.center-display {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+.background-scenery {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: -1;
+}
+
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    position: relative;
+    z-index: 2;
+}
+
+.status-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #000;
+}
+
+.status-light.disconnected { background-color: #ff3b30; }
+.status-light.connected { background-color: #34c759; }
+
+.hamburger-menu {
+    font-size: 24px;
+    cursor: pointer;
+}
+
+    .metadata-container {
+    position: absolute;
+    top: 45%;
+    width: 100%;
+    padding: 0 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 2;
+}
+
+.song-title {
+    font-size: 20px;
+    margin-bottom: 4px;
+    text-shadow: 2px 2px 0px #000;
+}
+
+.artist-name {
+    font-size: 14px;
+    color: var(--light-purple);
+    text-shadow: 1px 1px 0px #000;
+}
+
+.rotating-disc {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    animation: spin 4s linear infinite;
+}
+
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
