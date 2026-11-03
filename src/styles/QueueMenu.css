@@ -1,0 +1,97 @@
+.queue-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 85%;
+    background-color: rgba(30, 30, 30, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 2px solid var(--dark-purple);
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    padding: 16px 24px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    
+    /* The slide-up animation */
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.queue-overlay.open {
+    transform: translateY(0);
+}
+
+.drag-handle {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    cursor: pointer;
+    padding-bottom: 8px;
+}
+
+.handle-bar {
+    width: 40px;
+    height: 4px;
+    background-color: var(--light-purple);
+    border-radius: 2px;
+}
+
+.queue-tabs {
+    display: flex;
+    gap: 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+}
+
+.tab {
+    color: var(--light-purple);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.tab.active {
+    color: var(--moons-light);
+    font-weight: bold;
+}
+
+.queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+/* Song Row Styles */
+.song-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.row-thumbnail {
+    width: 48px;
+    height: 48px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.row-text-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-grow: 1; /* Pushes the heart to the right edge */
+}
+
+.row-title {
+    color: var(--moons-light);
+    font-size: 14px;
+}
+
+.row-artist {
+    color: var(--light-purple);
+    font-size: 10px;
+}
