@@ -1,0 +1,44 @@
+.player-controls-container {
+    position: absolute;
+    bottom: 40px; /* Pushes it slightly up into the water area */
+    width: 100%;
+    display: flex;
+    justify-content: space-evenly; /* Spaces out the 5 buttons perfectly */
+    align-items: center;
+    padding: 0 20px;
+    z-index: 2;
+    /* The background, blur, and border have been completely removed */
+}
+
+.main-playback-group {
+    display: flex;
+    align-items: center;
+    gap: 32px; /* Spacing between rewind, play, and forward */
+}
+
+button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.1s ease;
+}
+
+button:active {
+    transform: scale(0.9);
+}
+
+/* Forces your custom SVG icons to render sharply */
+.custom-icon {
+    width: 24px;
+    height: 24px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.play-pause-icon {
+    width: 32px; 
+    height: 32px;
+}
