@@ -2,7 +2,7 @@ import '../styles/CenterDisplay.css';
 import bgImage from '../assets/background.gif'; 
 import discImage from '../assets/disc.svg'; 
 
-export default function CenterDisplay({ isConnected, songTitle, artist }) {
+export default function CenterDisplay({ isConnected, songTitle, artist, isPlaying, toggleQueue }) {
     return (
     <div className="center-display">
         <img src={bgImage} alt="Pixel Night Sky" className="background-scenery" />
@@ -11,7 +11,7 @@ export default function CenterDisplay({ isConnected, songTitle, artist }) {
             <div className="profile-placeholder"></div>
             {/* This class toggles between 'connected' (green) and 'disconnected' (red) based on your FastAPI WebSocket state */}
             <div className={`status-light ${isConnected ? 'connected' : 'disconnected'}`}></div>
-            <div className="hamburger-menu">☰</div>
+            <div className="hamburger-menu" onClick={toggleQueue}>☰</div>
         </div>
 
         <div className="metadata-container">
