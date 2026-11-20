@@ -22,9 +22,18 @@ const PIXEL_MEDIA = [
   { src: "/pixel-18.png", alt: "Pixel music artwork 18" },
 ];
 
+const API_BASE = "http://localhost:8000";
 const LAST_MEDIA_KEY = "syncroom_last_media_index";
 const BG_MUSIC_SRC = "/lobby-loop.mp3";
 const DARK_SILVER_BORDER = "#525252";
+
+function persistFavorites(ids) {
+  try {
+    localStorage.setItem("syncroom_favorites", JSON.stringify(ids));
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 const DEFAULT_CATALOG = [
   {
@@ -250,29 +259,53 @@ export default function App() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isRemoteAction = useRef(false);
 
-  const handleToggleFavorite = (track) => {
+  const handleToggleFavorite = async (track) => {
     if (!track?.id) return;
+
+    // Optimistic local toggle (also serves offline mode)
     setFavorites((prev) => {
-      const exists = prev.some((t) => (typeof t === "string" ? t === track.id : t?.id === track.id));
-      const updated = exists
-        ? prev.filter((t) => (typeof t === "string" ? t !== track.id : t?.id !== track.id))
-        : [...prev, track.id];
-      try {
-        localStorage.setItem("syncroom_favorites", JSON.stringify(updated));
-      } catch {
-        // Ignore
-      }
+      const exists = prev.includes(track.id);
+      const updated = exists ? prev.filter((id) => id !== track.id) : [...prev, track.id];
+      persistFavorites(updated);
       return updated;
     });
+
+    const token = user?.token;
+    if (!token) return; // offline session — localStorage only
+    // Local (blob) tracks aren't persisted server-side
+    if (typeof track.src === "string" && track.src.startsWith("blob:")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/music/favorites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(track),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFavorites((prev) => {
+          const next =
+            data.status === "added"
+              ? Array.from(new Set([...prev, data.track_id]))
+              : prev.filter((id) => id !== data.track_id);
+          persistFavorites(next);
+          return next;
+        });
+      }
+    } catch {
+      // Backend unreachable — keep optimistic local state
+    }
   };
 
-  const isFavorite = (trackId) =>
-    favorites.some((t) => (typeof t === "string" ? t === trackId : t?.id === trackId));
+  const isFavorite = (trackId) => favorites.includes(trackId);
 
   // Fetch internet catalog from backend on mount
   useEffect(() => {
     let isMounted = true;
-    fetch("http://localhost:8000/api/music/catalog")
+    fetch(`${API_BASE}/api/music/catalog`)
       .then((res) => {
         if (!res.ok) throw new Error("Catalog fetch failed");
         return res.json();
@@ -289,6 +322,32 @@ export default function App() {
       isMounted = false;
     };
   }, []);
+
+  // Load server-persisted favorites when an authenticated token is present
+  useEffect(() => {
+    const token = user?.token;
+    if (!token) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/api/music/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Favorites fetch failed");
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const ids = (data.favorites || []).map((f) => f.id);
+        setFavorites(ids);
+        persistFavorites(ids);
+      })
+      .catch(() => {
+        // Keep localStorage favorites when offline
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.token]);
 
   // Room WebSocket Real-Time Synchronization
   const handleRemotePlay = useCallback((serverTime) => {
@@ -734,8 +793,8 @@ export default function App() {
 
     try {
       const endpoint = isSignupMode
-        ? "http://localhost:8000/api/auth/register"
-        : "http://localhost:8000/api/auth/login";
+        ? `${API_BASE}/api/auth/register`
+        : `${API_BASE}/api/auth/login`;
       const payload = isSignupMode
         ? {
             username: resolvedUsername,

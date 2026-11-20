@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
@@ -96,10 +97,23 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
         user=UserResponse.from_orm(user),
     )
 
-@router.get("/me", response_model=UserResponse)
-def get_current_user(token: str, db: Session = Depends(get_db)):
+# Reusable auth dependency: reads "Authorization: Bearer <jwt>" header
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            credentials.credentials,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid auth token")
@@ -109,4 +123,9 @@ def get_current_user(token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == int(user_id)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse.from_orm(user)
+    return user
+
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user

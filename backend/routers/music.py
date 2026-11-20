@@ -1,9 +1,10 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.models import FavoriteTrack, User
+from backend.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/music", tags=["music"])
 
@@ -90,11 +91,13 @@ def search_tracks(q: str = ""):
     ]
     return {"tracks": matches}
 
-@router.post("/favorites/{user_id}")
-def add_favorite(user_id: int, track: TrackSchema, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+@router.post("/favorites")
+def toggle_favorite(
+    track: TrackSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    user_id = current_user.id
 
     existing = db.query(FavoriteTrack).filter(
         FavoriteTrack.user_id == user_id, 
@@ -119,9 +122,12 @@ def add_favorite(user_id: int, track: TrackSchema, db: Session = Depends(get_db)
     db.commit()
     return {"status": "added", "track_id": track.id}
 
-@router.get("/favorites/{user_id}")
-def get_favorites(user_id: int, db: Session = Depends(get_db)):
-    favs = db.query(FavoriteTrack).filter(FavoriteTrack.user_id == user_id).all()
+@router.get("/favorites")
+def get_favorites(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    favs = db.query(FavoriteTrack).filter(FavoriteTrack.user_id == current_user.id).all()
     return {
         "favorites": [
             {
