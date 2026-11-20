@@ -1,0 +1,51 @@
+import datetime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from backend.database import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(120), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    favorites = relationship("FavoriteTrack", back_populates="user", cascade="all, delete-orphan")
+    playlists = relationship("SavedPlaylist", back_populates="user", cascade="all, delete-orphan")
+
+class Room(Base):
+    __tablename__ = "rooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(32), unique=True, index=True, nullable=False)
+    name = Column(String(100), default="Pixel Stereo Lounge")
+    host_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class FavoriteTrack(Base):
+    __tablename__ = "favorite_tracks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    track_id = Column(String(64), index=True, nullable=False)
+    title = Column(String(200), nullable=False)
+    artist = Column(String(200), nullable=False)
+    duration = Column(String(20), nullable=False)
+    src = Column(Text, nullable=False)
+    cover = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="favorites")
+
+class SavedPlaylist(Base):
+    __tablename__ = "saved_playlists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    name = Column(String(100), nullable=False)
+    tracks_json = Column(Text, default="[]")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", back_populates="playlists")
