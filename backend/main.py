@@ -55,10 +55,16 @@ async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username
                 )
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_code)
-        # Notify room members that user left
+        # Notify room members that user left and updated host
         await manager.broadcast(room_code, {
             "type": "LISTENERS_UPDATE",
+            "host": manager.room_hosts.get(room_code),
             "listeners": manager.room_members.get(room_code, []),
         })
     except Exception:
         manager.disconnect(websocket, room_code)
+        await manager.broadcast(room_code, {
+            "type": "LISTENERS_UPDATE",
+            "host": manager.room_hosts.get(room_code),
+            "listeners": manager.room_members.get(room_code, []),
+        })

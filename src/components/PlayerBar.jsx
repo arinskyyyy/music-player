@@ -5,6 +5,24 @@ function formatTime(seconds) {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
+export function PixelHeartIcon({ filled = false, className = "h-4 w-4" }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`${className} [shape-rendering:crispEdges]`} fill="none" aria-hidden="true">
+      {filled ? (
+        <path
+          d="M2 5h2v-2h3v2h2v-2h3v2h2v4h-2v2h-2v2h-2v2h-2v-2h-2v-2h-2v-2h-2v-4z"
+          fill="#ec4899"
+        />
+      ) : (
+        <path
+          d="M4 3h3v2h2v-2h3v2h2v4h-2v2h-2v2h-2v2h-2v-2h-2v-2h-2v-2h-2v-4h2v-2h2zm0 2v4h2v2h2v2h2v-2h2v-2h2v-4h-2v-2h-1v2h-4v-2h-1z"
+          fill="currentColor"
+        />
+      )}
+    </svg>
+  );
+}
+
 export default function PlayerBar({
   track,
   isPlaying,
@@ -14,6 +32,8 @@ export default function PlayerBar({
   isMuted = false,
   isLooping = false,
   isShuffle = false,
+  isFavorite = false,
+  onToggleFavorite,
   onTogglePlay,
   onSeekChange,
   onVolumeChange,
@@ -34,8 +54,8 @@ export default function PlayerBar({
       }}
       className="z-30 flex flex-col gap-2.5 px-4 py-3 sm:px-6 md:h-24 md:flex-row md:items-center md:justify-between md:py-0"
     >
-      {/* 1. Track Info & Artwork */}
-      <div className="flex items-center gap-3.5 min-w-0 md:w-64 lg:w-72">
+      {/* 1. Track Info & Artwork & Heart */}
+      <div className="flex items-center gap-3 min-w-0 md:w-64 lg:w-72">
         <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-neutral-900 text-xs font-bold">
           {track?.cover ? (
             <img
@@ -64,6 +84,20 @@ export default function PlayerBar({
             )}
           </div>
         </div>
+
+        {/* Favorite Heart Button */}
+        {track && (
+          <button
+            type="button"
+            onClick={() => onToggleFavorite?.(track)}
+            title={isFavorite ? "Favorited (Click to remove)" : "Add to Favorites"}
+            className={`pixel-btn flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform hover:scale-110 ${
+              isFavorite ? "text-pink-500" : "opacity-60 hover:opacity-100"
+            }`}
+          >
+            <PixelHeartIcon filled={isFavorite} className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* 2. Main Transport Controls & Timeline Scrubber */}

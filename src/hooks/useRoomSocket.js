@@ -9,6 +9,9 @@ export function useRoomSocket({
   onSyncChangeTrack,
   onSyncQueue,
   onListenersUpdate,
+  onHostUpdate,
+  onKicked,
+  onWallpaperUpdate,
 }) {
   const socketRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -19,6 +22,9 @@ export function useRoomSocket({
     onSyncChangeTrack,
     onSyncQueue,
     onListenersUpdate,
+    onHostUpdate,
+    onKicked,
+    onWallpaperUpdate,
   });
 
   // Keep latest callbacks in ref without triggering reconnects
@@ -30,10 +36,17 @@ export function useRoomSocket({
       onSyncChangeTrack,
       onSyncQueue,
       onListenersUpdate,
+      onHostUpdate,
+      onKicked,
+      onWallpaperUpdate,
     };
   });
 
   useEffect(() => {
+    if (!roomCode) {
+      return;
+    }
+
     // If running in development without backend, fail silently and allow standalone playback
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname || "localhost";
@@ -54,10 +67,16 @@ export function useRoomSocket({
           const cbs = callbacksRef.current;
           switch (data.type) {
             case "ROOM_STATE_INIT":
+              if (data.host && cbs.onHostUpdate) {
+                cbs.onHostUpdate(data.host);
+              }
               if (data.listeners && cbs.onListenersUpdate) {
                 cbs.onListenersUpdate(data.listeners);
               }
               if (data.state) {
+                if (data.state.wallpaper && cbs.onWallpaperUpdate) {
+                  cbs.onWallpaperUpdate(data.state.wallpaper);
+                }
                 if (data.state.track && cbs.onSyncChangeTrack) {
                   cbs.onSyncChangeTrack(data.state.track);
                 }
@@ -73,9 +92,33 @@ export function useRoomSocket({
               }
               break;
 
+            case "HOST_UPDATE":
+              if (cbs.onHostUpdate && data.host) {
+                cbs.onHostUpdate(data.host);
+              }
+              if (cbs.onListenersUpdate && data.listeners) {
+                cbs.onListenersUpdate(data.listeners);
+              }
+              break;
+
             case "LISTENERS_UPDATE":
               if (cbs.onListenersUpdate && data.listeners) {
                 cbs.onListenersUpdate(data.listeners);
+              }
+              if (cbs.onHostUpdate && data.host) {
+                cbs.onHostUpdate(data.host);
+              }
+              break;
+
+            case "KICKED":
+              if (cbs.onKicked) {
+                cbs.onKicked(data.reason || "Kicked from room");
+              }
+              break;
+
+            case "SYNC_WALLPAPER":
+              if (cbs.onWallpaperUpdate && data.wallpaper) {
+                cbs.onWallpaperUpdate(data.wallpaper);
               }
               break;
 

@@ -229,15 +229,45 @@ export default function App() {
   const [isShuffle, setIsShuffle] = useState(false);
 
   // Navigation & Track Management
-  const [activeTab, setActiveTab] = useState("discover"); // "discover" | "queue" | "profile"
+  const [activeTab, setActiveTab] = useState("discover"); // "discover" | "rooms" | "queue" | "profile"
+  const [roomCode, setRoomCode] = useState("ROOM-808");
+  const [currentHost, setCurrentHost] = useState("");
+  const [wallpaper, setWallpaper] = useState(() => selectedMedia.src);
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
   const [currentTrack, setCurrentTrack] = useState(DEFAULT_CATALOG[0]);
   const [queue, setQueue] = useState([]);
   const [localTracks, setLocalTracks] = useState([]);
   const [listeners, setListeners] = useState(ROOM_LISTENERS);
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem("syncroom_favorites");
+      return saved ? JSON.parse(saved) : ["track-1"];
+    } catch {
+      return ["track-1"];
+    }
+  });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isRemoteAction = useRef(false);
+
+  const handleToggleFavorite = (track) => {
+    if (!track?.id) return;
+    setFavorites((prev) => {
+      const exists = prev.some((t) => (typeof t === "string" ? t === track.id : t?.id === track.id));
+      const updated = exists
+        ? prev.filter((t) => (typeof t === "string" ? t !== track.id : t?.id !== track.id))
+        : [...prev, track.id];
+      try {
+        localStorage.setItem("syncroom_favorites", JSON.stringify(updated));
+      } catch {
+        // Ignore
+      }
+      return updated;
+    });
+  };
+
+  const isFavorite = (trackId) =>
+    favorites.some((t) => (typeof t === "string" ? t === trackId : t?.id === trackId));
 
   // Fetch internet catalog from backend on mount
   useEffect(() => {
@@ -328,8 +358,21 @@ export default function App() {
     }
   }, []);
 
+  const handleHostUpdate = useCallback((newHost) => {
+    if (newHost) setCurrentHost(newHost);
+  }, []);
+
+  const handleKicked = useCallback((reason) => {
+    alert(reason || "You were removed from the room by the host.");
+    setRoomCode("LOBBY");
+  }, []);
+
+  const handleWallpaperUpdate = useCallback((newWallpaper) => {
+    if (newWallpaper) setWallpaper(newWallpaper);
+  }, []);
+
   const { sendAction } = useRoomSocket({
-    roomCode: "ROOM-808",
+    roomCode: roomCode,
     username: user?.username || "PlayerOne",
     onSyncPlay: handleRemotePlay,
     onSyncPause: handleRemotePause,
@@ -337,7 +380,42 @@ export default function App() {
     onSyncChangeTrack: handleRemoteChangeTrack,
     onSyncQueue: handleRemoteQueue,
     onListenersUpdate: handleRemoteListeners,
+    onHostUpdate: handleHostUpdate,
+    onKicked: handleKicked,
+    onWallpaperUpdate: handleWallpaperUpdate,
   });
+
+  const handleExitRoom = () => {
+    sendAction("PAUSE", { current_time: audioRef.current?.currentTime || 0 });
+    setRoomCode("LOBBY");
+  };
+
+  const handleJoinRoom = (code) => {
+    if (!code) return;
+    setRoomCode(code.toUpperCase());
+    setActiveTab("discover");
+  };
+
+  const handleCreateRoom = (code) => {
+    const targetCode = (code || `ROOM-${Math.floor(100 + Math.random() * 900)}`).toUpperCase();
+    setRoomCode(targetCode);
+    setCurrentHost(user?.username || "PlayerOne");
+    setActiveTab("discover");
+  };
+
+  const handleGiveLeadership = (targetName) => {
+    sendAction("GIVE_LEADERSHIP", { target_name: targetName });
+    setCurrentHost(targetName);
+  };
+
+  const handleKickUser = (targetName) => {
+    sendAction("KICK_USER", { target_name: targetName });
+  };
+
+  const handleChangeWallpaper = (newWp) => {
+    setWallpaper(newWp);
+    sendAction("CHANGE_WALLPAPER", { wallpaper: newWp });
+  };
 
   // System Theme Listener (ESLint error fixed: no synchronous setState in effect)
   useEffect(() => {
@@ -693,9 +771,12 @@ export default function App() {
         setUser(resolvedUser);
         setActiveView("workspace");
         setIsAuthenticated(true);
-        if (audioRef.current && audioRef.current.paused) {
-          audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+        // Stop playing login song upon entering main site
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
         }
+        setIsPlaying(false);
         setIsSubmitting(false);
         return;
       } else {
@@ -721,9 +802,12 @@ export default function App() {
       setUser(resolvedUser);
       setActiveView("workspace");
       setIsAuthenticated(true);
-      if (audioRef.current && audioRef.current.paused) {
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      // Stop playing login song upon entering main site
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
       }
+      setIsPlaying(false);
       setIsSubmitting(false);
     }
   }
@@ -1085,8 +1169,20 @@ export default function App() {
         <div
           key="workspace-view"
           style={globalThemeStyle}
-          className="workspace-smooth-enter flex h-dvh w-full flex-col overflow-hidden"
+          className="workspace-smooth-enter relative flex h-dvh w-full flex-col overflow-hidden"
         >
+          {/* Subtle room wallpaper backdrop */}
+          {wallpaper && (
+            <div
+              className="pointer-events-none absolute inset-0 z-0 opacity-10 [image-rendering:pixelated]"
+              style={{
+                backgroundImage: `url(${wallpaper})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
+              aria-hidden="true"
+            />
+          )}
           {/* Workspace Top Header */}
           <header
             style={{
@@ -1169,15 +1265,19 @@ export default function App() {
           <div className="relative flex flex-1 overflow-hidden">
             <Sidebar
               user={user}
-              roomCode="ROOM-808"
+              roomCode={roomCode}
               activeTab={activeTab}
               setActiveTab={(tab) => {
                 setActiveTab(tab);
                 setActiveView("workspace");
               }}
               listeners={listeners}
+              currentHost={currentHost}
               onOpenSettings={() => setActiveView("settings")}
-              onLogout={handleLogout}
+              onExitRoom={handleExitRoom}
+              onGiveLeadership={handleGiveLeadership}
+              onKickUser={handleKickUser}
+              onChangeWallpaper={handleChangeWallpaper}
               isMobileOpen={isMobileOpen}
               setIsMobileOpen={setIsMobileOpen}
               effectiveSiteColor={effectiveSiteColor}
@@ -1378,6 +1478,13 @@ export default function App() {
                 onLoadAllToQueue={handleLoadAllToQueue}
                 localTracks={localTracks}
                 onImportLocalFiles={handleImportLocalFiles}
+                favorites={favorites}
+                onToggleFavorite={handleToggleFavorite}
+                currentRoomCode={roomCode}
+                onJoinRoom={handleJoinRoom}
+                onCreateRoom={handleCreateRoom}
+                onExitRoom={handleExitRoom}
+                listeners={listeners}
                 effectiveSiteColor={effectiveSiteColor}
                 effectiveTextColor={effectiveTextColor}
                 surfaceBg={surfaceBg}
@@ -1395,6 +1502,8 @@ export default function App() {
             isMuted={isMuted}
             isLooping={isLooping}
             isShuffle={isShuffle}
+            isFavorite={isFavorite(currentTrack?.id)}
+            onToggleFavorite={handleToggleFavorite}
             onTogglePlay={handleTogglePlay}
             onSeekChange={handleSeek}
             onVolumeChange={setVolume}
