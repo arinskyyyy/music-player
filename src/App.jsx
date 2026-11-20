@@ -38,46 +38,46 @@ const DEFAULT_CATALOG = [
   },
   {
     id: "track-2",
-    title: "Midnight Stroll",
-    artist: "Snail's House",
-    duration: "02:50",
-    src: "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=lofi-study-112191.mp3",
+    title: "80s Cyber Vibe",
+    artist: "Howler Arcade",
+    duration: "01:25",
+    src: "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/80s_vibe.mp3",
     cover: "/pixel-1.jpg",
     sourceLabel: "STREAM",
   },
   {
     id: "track-3",
-    title: "Neon City Rain",
-    artist: "Purrple Cat",
-    duration: "03:15",
-    src: "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=tea-time-19416.mp3",
+    title: "Rave Digger",
+    artist: "Pixel Synth",
+    duration: "01:40",
+    src: "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/rave_digger.mp3",
     cover: "/pixel-7.gif",
     sourceLabel: "STREAM",
   },
   {
     id: "track-4",
-    title: "Retro Arcade Glow",
-    artist: "Bit Byte",
-    duration: "02:30",
-    src: "https://cdn.pixabay.com/download/audio/2022/10/14/audio_9939f792cb.mp3?filename=lofi-chill-medium-version-159456.mp3",
+    title: "Running Out of Time",
+    artist: "Retro Wave",
+    duration: "01:30",
+    src: "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/running_out.mp3",
     cover: "/pixel-8.gif",
     sourceLabel: "STREAM",
   },
   {
     id: "track-5",
-    title: "Cyber Moonlight",
-    artist: "Pixel Sound",
-    duration: "03:00",
-    src: "https://cdn.pixabay.com/download/audio/2021/09/06/audio_73a5a415a9.mp3?filename=chill-abstract-intention-12099.mp3",
+    title: "Viper Synth",
+    artist: "MDN WebAudio",
+    duration: "00:58",
+    src: "https://raw.githubusercontent.com/mdn/webaudio-examples/main/audio-analyser/viper.mp3",
     cover: "/pixel-14.jpg",
     sourceLabel: "STREAM",
   },
   {
     id: "track-6",
-    title: "Pixel Coffee Shop",
-    artist: "Lofi Beats",
-    duration: "02:40",
-    src: "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=lofi-chill-31853.mp3",
+    title: "Neon City Rain",
+    artist: "Sample Beats",
+    duration: "02:45",
+    src: "https://raw.githubusercontent.com/rafaelreis-hotmart/Audio-Sample-files/master/sample.mp3",
     cover: "/pixel-11.jpg",
     sourceLabel: "STREAM",
   },
@@ -307,6 +307,7 @@ export default function App() {
       setCurrentTrack(syncTrack);
       if (audioRef.current) {
         audioRef.current.src = syncTrack.src;
+        audioRef.current.currentTime = 0;
         audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
       }
       setTimeout(() => {
@@ -357,18 +358,19 @@ export default function App() {
     });
   }, [selectedMedia.src]);
 
+  // Ensure audio has initial src on mount
+  useEffect(() => {
+    if (audioRef.current && !audioRef.current.src) {
+      audioRef.current.src = currentTrack?.src || BG_MUSIC_SRC;
+    }
+  }, [currentTrack?.src]);
+
   // Initial user interaction sound unlock
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    audio.volume = volume / 100;
-    audio.muted = isMuted;
-
     const unlockSound = () => {
-      if (!audioRef.current) return;
-      if (audioRef.current.paused) {
-        audioRef.current
+      const audio = audioRef.current;
+      if (audio && audio.paused) {
+        audio
           .play()
           .then(() => setIsPlaying(true))
           .catch(() => {});
@@ -382,9 +384,9 @@ export default function App() {
       window.removeEventListener("pointerdown", unlockSound);
       window.removeEventListener("keydown", unlockSound);
     };
-  }, [volume, isMuted]);
+  }, []);
 
-  // Sync volume with audio element
+  // Sync volume & mute state with audio element
   useEffect(() => {
     if (audioRef.current) {
       audioRef.current.volume = volume / 100;
@@ -438,7 +440,13 @@ export default function App() {
       }
       if (audioRef.current) {
         audioRef.current.src = nextTrack.src;
-        audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+        audioRef.current.currentTime = 0;
+        audioRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn("[SyncRoom Audio] Next track play error:", err);
+          });
       }
       return;
     }
@@ -460,7 +468,13 @@ export default function App() {
     }
     if (audioRef.current) {
       audioRef.current.src = nextTrack.src;
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      audioRef.current.currentTime = 0;
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn("[SyncRoom Audio] Next track play error:", err);
+        });
     }
   };
 
@@ -484,7 +498,13 @@ export default function App() {
     }
     if (audioRef.current) {
       audioRef.current.src = prevTrack.src;
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      audioRef.current.currentTime = 0;
+      audioRef.current
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn("[SyncRoom Audio] Prev track play error:", err);
+        });
     }
   };
 
@@ -506,6 +526,9 @@ export default function App() {
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      if (!audio.src && currentTrack?.src) {
+        audio.src = currentTrack.src;
+      }
       audio
         .play()
         .then(() => {
@@ -514,7 +537,9 @@ export default function App() {
             sendAction("PLAY", { current_time: audio.currentTime });
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn("[SyncRoom Audio] Toggle play error:", err);
+        });
     } else {
       audio.pause();
       setIsPlaying(false);
@@ -533,12 +558,16 @@ export default function App() {
     if (!isRemoteAction.current) {
       sendAction("CHANGE_TRACK", { track, current_time: 0 });
     }
-    if (audioRef.current) {
-      audioRef.current.src = track.src;
-      audioRef.current
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = track.src;
+      audio.currentTime = 0;
+      audio
         .play()
         .then(() => setIsPlaying(true))
-        .catch(() => {});
+        .catch((err) => {
+          console.warn("[SyncRoom Audio] Track select play error:", err);
+        });
     }
   };
 
@@ -754,13 +783,13 @@ export default function App() {
       {/* Centralized Audio Pipeline */}
       <audio
         ref={audioRef}
-        src={currentTrack?.src || BG_MUSIC_SRC}
         preload="auto"
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleAudioEnded}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onError={(e) => console.warn("[SyncRoom Audio] Playback error on audio element:", e)}
       />
 
       {!isAuthenticated ? (
