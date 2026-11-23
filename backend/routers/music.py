@@ -1,9 +1,11 @@
+import json
 from typing import List, Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import httpx
 from backend.database import get_db
-from backend.models import FavoriteTrack, User
+from backend.models import FavoriteTrack, SavedPlaylist, User
 from backend.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/music", tags=["music"])
@@ -17,62 +19,19 @@ class TrackSchema(BaseModel):
     cover: Optional[str] = None
     sourceLabel: Optional[str] = None
 
-# Curated Stream Catalog (Guaranteed CORS-accessible streams)
-PUBLIC_CATALOG: List[dict] = [
-  {
-    "id": "track-1",
-    "title": "Lobby Pixel Loop",
-    "artist": "Columbina",
-    "duration": "03:45",
-    "src": "/lobby-loop.mp3",
-    "cover": "/pixel-0.gif",
-    "sourceLabel": "ROOM LOOP",
-  },
-  {
-    "id": "track-2",
-    "title": "80s Cyber Vibe",
-    "artist": "Howler Arcade",
-    "duration": "01:25",
-    "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/80s_vibe.mp3",
-    "cover": "/pixel-1.jpg",
-    "sourceLabel": "STREAM",
-  },
-  {
-    "id": "track-3",
-    "title": "Rave Digger",
-    "artist": "Pixel Synth",
-    "duration": "01:40",
-    "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/rave_digger.mp3",
-    "cover": "/pixel-7.gif",
-    "sourceLabel": "STREAM",
-  },
-  {
-    "id": "track-4",
-    "title": "Running Out of Time",
-    "artist": "Retro Wave",
-    "duration": "01:30",
-    "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/running_out.mp3",
-    "cover": "/pixel-8.gif",
-    "sourceLabel": "STREAM",
-  },
-  {
-    "id": "track-5",
-    "title": "Viper Synth",
-    "artist": "MDN WebAudio",
-    "duration": "00:58",
-    "src": "https://raw.githubusercontent.com/mdn/webaudio-examples/main/audio-analyser/viper.mp3",
-    "cover": "/pixel-14.jpg",
-    "sourceLabel": "STREAM",
-  },
-  {
-    "id": "track-6",
-    "title": "Neon City Rain",
-    "artist": "Sample Beats",
-    "duration": "02:45",
-    "src": "https://raw.githubusercontent.com/rafaelreis-hotmart/Audio-Sample-files/master/sample.mp3",
-    "cover": "/pixel-11.jpg",
-    "sourceLabel": "STREAM",
-  },
+class PlaylistCreate(BaseModel):
+    name: str
+
+class AddTrackRequest(BaseModel):
+    track: TrackSchema
+
+PUBLIC_CATALOG = [
+  {"id": "track-1", "title": "Lobby Pixel Loop", "artist": "Columbina", "duration": "03:45", "src": "/lobby-loop.mp3", "cover": "/pixel-0.gif", "sourceLabel": "ROOM LOOP"},
+  {"id": "track-2", "title": "80s Cyber Vibe", "artist": "Howler Arcade", "duration": "01:25", "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/80s_vibe.mp3", "cover": "/pixel-1.jpg", "sourceLabel": "STREAM"},
+  {"id": "track-3", "title": "Rave Digger", "artist": "Pixel Synth", "duration": "01:40", "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/rave_digger.mp3", "cover": "/pixel-7.gif", "sourceLabel": "STREAM"},
+  {"id": "track-4", "title": "Running Out of Time", "artist": "Retro Wave", "duration": "01:30", "src": "https://raw.githubusercontent.com/goldfire/howler.js/master/examples/player/audio/running_out.mp3", "cover": "/pixel-8.gif", "sourceLabel": "STREAM"},
+  {"id": "track-5", "title": "Viper Synth", "artist": "MDN WebAudio", "duration": "00:58", "src": "https://raw.githubusercontent.com/mdn/webaudio-examples/main/audio-analyser/viper.mp3", "cover": "/pixel-14.jpg", "sourceLabel": "STREAM"},
+  {"id": "track-6", "title": "Neon City Rain", "artist": "Sample Beats", "duration": "02:45", "src": "https://raw.githubusercontent.com/rafaelreis-hotmart/Audio-Sample-files/master/sample.mp3", "cover": "/pixel-11.jpg", "sourceLabel": "STREAM"},
 ]
 
 @router.get("/catalog")
@@ -84,60 +43,140 @@ def search_tracks(q: str = ""):
     query = q.strip().lower()
     if not query:
         return {"tracks": PUBLIC_CATALOG}
-    
-    matches = [
-        t for t in PUBLIC_CATALOG
-        if query in t["title"].lower() or query in t["artist"].lower()
-    ]
+    matches = [t for t in PUBLIC_CATALOG if query in t["title"].lower() or query in t["artist"].lower()]
     return {"tracks": matches}
 
+@router.get("/external-search")
+def external_search(q: str = "", limit: int = 50, offset: int = 0):
+    query = q.strip()
+    if not query:
+        return {"tracks": []}
+
+    tracks = []
+    
+    # 1. Audius
+    try:
+        resp = httpx.get("https://api.audius.co/v1/tracks/search", params={"query": query, "app_name": "SyncRoom", "limit": limit, "offset": offset}, timeout=5.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            for r in data.get("data", []):
+                if not r.get("is_streamable", False): continue
+                secs = r.get("duration", 0)
+                tracks.append({
+                    "id": f"audius-{r['id']}", "title": r.get("title", "Unknown"),
+                    "artist": r.get("user", {}).get("name", "Unknown Artist"),
+                    "duration": f"{secs // 60:02d}:{secs % 60:02d}",
+                    "src": f"https://api.audius.co/v1/tracks/{r['id']}/stream?app_name=SyncRoom",
+                    "cover": r.get("artwork", {}).get("480x480") or "/pixel-0.gif",
+                    "sourceLabel": "AUDIUS",
+                })
+    except Exception: pass
+
+    # 2. Deezer
+    if not tracks:
+        try:
+            resp = httpx.get("https://api.deezer.com/search", params={"q": query, "limit": limit, "index": offset}, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                for r in data.get("data", []):
+                    if not r.get("preview"): continue
+                    secs = r.get("duration", 0)
+                    tracks.append({
+                        "id": f"deezer-{r['id']}", "title": r.get("title", "Unknown"),
+                        "artist": r.get("artist", {}).get("name", "Unknown Artist"),
+                        "duration": f"{secs // 60:02d}:{secs % 60:02d}", "src": r.get("preview"),
+                        "cover": r.get("album", {}).get("cover_medium") or "/pixel-0.gif",
+                        "sourceLabel": "DEEZER",
+                    })
+        except Exception: pass
+
+    # 3. iTunes
+    if not tracks:
+        try:
+            resp = httpx.get("https://itunes.apple.com/search", params={"term": query, "media": "music", "entity": "song", "limit": limit, "offset": offset}, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                for r in data.get("results", []):
+                    if r.get("kind") != "song" or not r.get("previewUrl"): continue
+                    ms = r.get("trackTimeMillis") or 0
+                    tracks.append({
+                        "id": f"itunes-{r.get('trackId')}", "title": r.get("trackName", "Unknown"),
+                        "artist": r.get("artistName", "Unknown"),
+                        "duration": f"{ms // 60000:02d}:{(ms // 1000) % 60:02d}",
+                        "src": r.get("previewUrl"), "cover": r.get("artworkUrl100"),
+                        "sourceLabel": "ITUNES PREVIEW",
+                    })
+        except Exception: pass
+
+    if not tracks:
+        q_clean = query.lower()
+        tracks = [t for t in PUBLIC_CATALOG if q_clean in t["title"].lower() or q_clean in t["artist"].lower()]
+
+    return {"tracks": tracks}
+
 @router.post("/favorites")
-def toggle_favorite(
-    track: TrackSchema,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    user_id = current_user.id
-
-    existing = db.query(FavoriteTrack).filter(
-        FavoriteTrack.user_id == user_id, 
-        FavoriteTrack.track_id == track.id
-    ).first()
-
+def toggle_favorite(track: TrackSchema, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    existing = db.query(FavoriteTrack).filter(FavoriteTrack.user_id == current_user.id, FavoriteTrack.track_id == track.id).first()
     if existing:
-        db.delete(existing)
-        db.commit()
+        db.delete(existing); db.commit()
         return {"status": "removed", "track_id": track.id}
-
-    fav = FavoriteTrack(
-        user_id=user_id,
-        track_id=track.id,
-        title=track.title,
-        artist=track.artist,
-        duration=track.duration,
-        src=track.src,
-        cover=track.cover,
-    )
-    db.add(fav)
-    db.commit()
+    fav = FavoriteTrack(user_id=current_user.id, track_id=track.id, title=track.title, artist=track.artist, duration=track.duration, src=track.src, cover=track.cover, source_label=track.sourceLabel)
+    db.add(fav); db.commit()
     return {"status": "added", "track_id": track.id}
 
 @router.get("/favorites")
-def get_favorites(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    favs = db.query(FavoriteTrack).filter(FavoriteTrack.user_id == current_user.id).all()
-    return {
-        "favorites": [
-            {
-                "id": f.track_id,
-                "title": f.title,
-                "artist": f.artist,
-                "duration": f.duration,
-                "src": f.src,
-                "cover": f.cover,
-            }
-            for f in favs
-        ]
-    }
+def get_favorites(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    favs = db.query(FavoriteTrack).filter(FavoriteTrack.user_id == current_user.id).order_by(FavoriteTrack.id.desc()).all()
+    return {"favorites": [{"id": f.track_id, "title": f.title, "artist": f.artist, "duration": f.duration, "src": f.src, "cover": f.cover, "sourceLabel": f.source_label} for f in favs]}
+
+@router.get("/playlists")
+def list_playlists(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    playlists = db.query(SavedPlaylist).filter(SavedPlaylist.user_id == current_user.id).order_by(SavedPlaylist.id).all()
+    result = []
+    for p in playlists:
+        try: tracks = json.loads(p.tracks_json or "[]")
+        except json.JSONDecodeError: tracks = []
+        result.append({"id": p.id, "name": p.name, "tracks": tracks})
+    return {"playlists": result}
+
+@router.post("/playlists")
+def create_playlist(req: PlaylistCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    name = req.name.strip()
+    if not name: raise HTTPException(status_code=400, detail="Name required")
+    playlist = SavedPlaylist(user_id=current_user.id, name=name, tracks_json="[]")
+    db.add(playlist); db.commit(); db.refresh(playlist)
+    return {"id": playlist.id, "name": playlist.name, "tracks": []}
+
+@router.put("/playlists/{playlist_id}")
+def rename_playlist(playlist_id: int, req: PlaylistCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    playlist = db.query(SavedPlaylist).filter(SavedPlaylist.id == playlist_id, SavedPlaylist.user_id == current_user.id).first()
+    if not playlist: raise HTTPException(status_code=404, detail="Not found")
+    playlist.name = req.name.strip(); db.commit()
+    return {"id": playlist.id, "name": playlist.name}
+
+@router.delete("/playlists/{playlist_id}")
+def delete_playlist(playlist_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    playlist = db.query(SavedPlaylist).filter(SavedPlaylist.id == playlist_id, SavedPlaylist.user_id == current_user.id).first()
+    if not playlist: raise HTTPException(status_code=404, detail="Not found")
+    db.delete(playlist); db.commit()
+    return {"status": "deleted"}
+
+@router.post("/playlists/{playlist_id}/tracks")
+def add_track_to_playlist(playlist_id: int, req: AddTrackRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    playlist = db.query(SavedPlaylist).filter(SavedPlaylist.id == playlist_id, SavedPlaylist.user_id == current_user.id).first()
+    if not playlist: raise HTTPException(status_code=404, detail="Not found")
+    try: tracks = json.loads(playlist.tracks_json or "[]")
+    except json.JSONDecodeError: tracks = []
+    if not any(t.get("id") == req.track.id for t in tracks): tracks.append(req.track.model_dump())
+    playlist.tracks_json = json.dumps(tracks); db.commit()
+    return {"id": playlist.id, "name": playlist.name, "tracks": tracks}
+
+@router.delete("/playlists/{playlist_id}/tracks/{track_id}")
+def remove_track_from_playlist(playlist_id: int, track_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    playlist = db.query(SavedPlaylist).filter(SavedPlaylist.id == playlist_id, SavedPlaylist.user_id == current_user.id).first()
+    if not playlist: raise HTTPException(status_code=404, detail="Not found")
+    try: tracks = json.loads(playlist.tracks_json or "[]")
+    except json.JSONDecodeError: tracks = []
+    tracks = [t for t in tracks if t.get("id") != track_id]
+    playlist.tracks_json = json.dumps(tracks); db.commit()
+    return {"id": playlist.id, "name": playlist.name, "tracks": tracks}
