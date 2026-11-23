@@ -94,3 +94,13 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 9999px;
   cursor: pointer;
 }
+
+@keyframes eqBounce {
+  0% { height: 3px; }
+  50% { height: 16px; }
+  100% { height: 6px; }
+}
+
+.eq-bar-playing {
+  animation: eqBounce 650ms ease-in-out infinite alternate;
+}
