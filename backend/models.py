@@ -11,6 +11,10 @@ class User(Base):
     email = Column(String(120), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Persist user stats across devices/logins
+    recent_tracks_json = Column(Text, default="[]")
+    play_counts_json = Column(Text, default="{}")
 
     favorites = relationship("FavoriteTrack", back_populates="user", cascade="all, delete-orphan")
     playlists = relationship("SavedPlaylist", back_populates="user", cascade="all, delete-orphan")
@@ -35,6 +39,7 @@ class FavoriteTrack(Base):
     duration = Column(String(20), nullable=False)
     src = Column(Text, nullable=False)
     cover = Column(Text, nullable=True)
+    source_label = Column(String(50), nullable=True) # Added to keep badges
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="favorites")
