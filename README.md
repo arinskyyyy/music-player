@@ -1,16 +1,41 @@
-# React + Vite
+# SyncRoom — Pixel Music Player
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A synchronized, real-time multiplayer music player with a retro pixel-art aesthetic. Built with React, Vite, Tailwind CSS, FastAPI, and WebSockets.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Real-Time Room Sync:** Create or join rooms. Play, pause, seek, and change tracks simultaneously across all connected listeners.
+- **Host Controls:** The room host can kick users, transfer leadership, and change the room wallpaper.
+- **Local PC Storage:** Load your own MP3/WAV files directly from your machine into the player.
+- **Search & Favorites:** Search the iTunes API for tracks, and save your favorites to your account.
+- **Theme Engine:** Customizable site accent colors, text colors, and wallpapers.
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend:** React 19, Vite, Tailwind CSS v4, HTML5 Web Audio
+- **Backend:** FastAPI, Uvicorn, SQLAlchemy
+- **Database:** PostgreSQL (falls back to SQLite locally)
+- **Auth:** JWT (JSON Web Tokens), bcrypt
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Getting Started
+
+### 1. Backend Setup
+
+Make sure you have Python 3.10+ installed.
+
+```bash
+# Navigate to the project root
+cd music-player
+
+# Create and activate a virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r backend/requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env and add your PostgreSQL credentials, or leave it empty to use SQLite
