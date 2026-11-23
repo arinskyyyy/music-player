@@ -1,196 +1,118 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-export function useRoomSocket({
-  roomCode = "ROOM-808",
-  username = "Listener",
-  onSyncPlay,
-  onSyncPause,
-  onSyncSeek,
-  onSyncChangeTrack,
-  onSyncQueue,
-  onListenersUpdate,
-  onHostUpdate,
-  onKicked,
-  onWallpaperUpdate,
-}) {
-  const socketRef = useRef(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const callbacksRef = useRef({
-    onSyncPlay,
-    onSyncPause,
-    onSyncSeek,
-    onSyncChangeTrack,
-    onSyncQueue,
-    onListenersUpdate,
-    onHostUpdate,
-    onKicked,
-    onWallpaperUpdate,
-  });
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-  // Keep latest callbacks in ref without triggering reconnects
-  useEffect(() => {
-    callbacksRef.current = {
-      onSyncPlay,
-      onSyncPause,
-      onSyncSeek,
-      onSyncChangeTrack,
-      onSyncQueue,
-      onListenersUpdate,
-      onHostUpdate,
-      onKicked,
-      onWallpaperUpdate,
-    };
-  });
-
-  useEffect(() => {
-    if (!roomCode) {
-      return;
-    }
-
-    // If running in development without backend, fail silently and allow standalone playback
+function getWebSocketUrl(roomCode, username) {
+  try {
+    const parsed = new URL(API_BASE);
+    const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
+    return `${wsProto}//${parsed.host}/ws/rooms/${roomCode}?username=${encodeURIComponent(username)}`;
+  } catch {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.hostname || "localhost";
-    const wsUrl = `${protocol}//${host}:8000/ws/rooms/${roomCode}?username=${encodeURIComponent(username)}`;
+    const port = window.location.port === "5173" ? ":8000" : (window.location.port ? `:${window.location.port}` : "");
+    return `${protocol}//${host}${port}/ws/rooms/${roomCode}?username=${encodeURIComponent(username)}`;
+  }
+}
 
-    let ws;
-    try {
-      ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
+export function useRoomSocket({ roomCode = "", username = "Listener", isConnected: externalIsConnected, onSyncPlay, onSyncPause, onSyncSeek, onSyncChangeTrack, onSyncQueue, onListenersUpdate, onHostUpdate, onKicked, onWallpaperUpdate }) {
+  const socketRef = useRef(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const reconnectTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
+  const messageQueueRef = useRef([]);
+  
+  const callbacksRef = useRef({});
+  useEffect(() => { callbacksRef.current = { onSyncPlay, onSyncPause, onSyncSeek, onSyncChangeTrack, onSyncQueue, onListenersUpdate, onHostUpdate, onKicked, onWallpaperUpdate }; });
 
-      ws.onopen = () => {
-        setIsConnected(true);
-      };
+  useEffect(() => {
+    if (!roomCode || externalIsConnected === false) return;
+    let isMounted = true;
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const cbs = callbacksRef.current;
-          switch (data.type) {
-            case "ROOM_STATE_INIT":
-              if (data.host && cbs.onHostUpdate) {
-                cbs.onHostUpdate(data.host);
-              }
-              if (data.listeners && cbs.onListenersUpdate) {
-                cbs.onListenersUpdate(data.listeners);
-              }
-              if (data.state) {
-                if (data.state.wallpaper && cbs.onWallpaperUpdate) {
-                  cbs.onWallpaperUpdate(data.state.wallpaper);
+    const connect = () => {
+      if (!isMounted) return;
+      const wsUrl = getWebSocketUrl(roomCode, username);
+
+      try {
+        const ws = new WebSocket(wsUrl);
+        socketRef.current = ws;
+
+        ws.onopen = () => {
+          if (!isMounted) return;
+          setIsConnected(true);
+          retryCountRef.current = 0;
+          while (messageQueueRef.current.length > 0) ws.send(messageQueueRef.current.shift());
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const cbs = callbacksRef.current;
+            switch (data.type) {
+              case "ROOM_STATE_INIT":
+                if (data.host) cbs.onHostUpdate?.(data.host);
+                if (data.listeners) cbs.onListenersUpdate?.(data.listeners);
+                if (data.my_username) localStorage.setItem("syncroom_active_username", data.my_username);
+                if (data.state) {
+                  if (data.state.wallpaper) cbs.onWallpaperUpdate?.(data.state.wallpaper);
+                  if (data.state.track) cbs.onSyncChangeTrack?.(data.state.track);
+                  if (data.state.current_time !== undefined) cbs.onSyncSeek?.(data.state.current_time);
+                  if (data.state.is_playing) cbs.onSyncPlay?.(data.state.current_time);
+                  else cbs.onSyncPause?.(data.state.current_time);
+                  if (data.state.queue) cbs.onSyncQueue?.(data.state.queue);
                 }
-                if (data.state.track && cbs.onSyncChangeTrack) {
-                  cbs.onSyncChangeTrack(data.state.track);
+                break;
+              case "HOST_UPDATE": case "LISTENERS_UPDATE":
+                if (data.host) cbs.onHostUpdate?.(data.host);
+                if (data.listeners) cbs.onListenersUpdate?.(data.listeners);
+                break;
+              case "KICKED": cbs.onKicked?.(data.reason || "Kicked from room"); break;
+              case "SYNC_WALLPAPER": if (data.wallpaper) cbs.onWallpaperUpdate?.(data.wallpaper); break;
+              case "SYNC_PLAY": if (data.state) cbs.onSyncPlay?.(data.state.current_time); break;
+              case "SYNC_PAUSE": if (data.state) cbs.onSyncPause?.(data.state.current_time); break;
+              case "SYNC_SEEK": if (data.state) cbs.onSyncSeek?.(data.state.current_time); break;
+              case "SYNC_CHANGE_TRACK": if (data.state?.track) cbs.onSyncChangeTrack?.(data.state.track); break;
+              case "SYNC_UPDATE_QUEUE": if (data.state?.queue) cbs.onSyncQueue?.(data.state.queue); break;
+              case "ERROR":
+                console.warn("[WebSocket Error]", data.detail);
+                if (data.state) {
+                  if (data.state.track) cbs.onSyncChangeTrack?.(data.state.track);
+                  if (data.state.is_playing) cbs.onSyncPlay?.(data.state.current_time);
+                  else cbs.onSyncPause?.(data.state.current_time);
                 }
-                if (data.state.current_time !== undefined && cbs.onSyncSeek) {
-                  cbs.onSyncSeek(data.state.current_time);
-                }
-                if (data.state.is_playing && cbs.onSyncPlay) {
-                  cbs.onSyncPlay(data.state.current_time);
-                }
-                if (data.state.queue && cbs.onSyncQueue) {
-                  cbs.onSyncQueue(data.state.queue);
-                }
-              }
-              break;
+                break;
+              default: break;
+            }
+          } catch (err) { console.error("WS Parse Error", err); }
+        };
 
-            case "HOST_UPDATE":
-              if (cbs.onHostUpdate && data.host) {
-                cbs.onHostUpdate(data.host);
-              }
-              if (cbs.onListenersUpdate && data.listeners) {
-                cbs.onListenersUpdate(data.listeners);
-              }
-              break;
-
-            case "LISTENERS_UPDATE":
-              if (cbs.onListenersUpdate && data.listeners) {
-                cbs.onListenersUpdate(data.listeners);
-              }
-              if (cbs.onHostUpdate && data.host) {
-                cbs.onHostUpdate(data.host);
-              }
-              break;
-
-            case "KICKED":
-              if (cbs.onKicked) {
-                cbs.onKicked(data.reason || "Kicked from room");
-              }
-              break;
-
-            case "SYNC_WALLPAPER":
-              if (cbs.onWallpaperUpdate && data.wallpaper) {
-                cbs.onWallpaperUpdate(data.wallpaper);
-              }
-              break;
-
-            case "SYNC_PLAY":
-              if (cbs.onSyncPlay && data.state) {
-                cbs.onSyncPlay(data.state.current_time);
-              }
-              break;
-
-            case "SYNC_PAUSE":
-              if (cbs.onSyncPause && data.state) {
-                cbs.onSyncPause(data.state.current_time);
-              }
-              break;
-
-            case "SYNC_SEEK":
-              if (cbs.onSyncSeek && data.state) {
-                cbs.onSyncSeek(data.state.current_time);
-              }
-              break;
-
-            case "SYNC_CHANGE_TRACK":
-              if (cbs.onSyncChangeTrack && data.state?.track) {
-                cbs.onSyncChangeTrack(data.state.track);
-              }
-              break;
-
-            case "SYNC_UPDATE_QUEUE":
-              if (cbs.onSyncQueue && data.state?.queue) {
-                cbs.onSyncQueue(data.state.queue);
-              }
-              break;
-
-            default:
-              break;
+        ws.onclose = () => {
+          if (!isMounted) return;
+          setIsConnected(false);
+          socketRef.current = null;
+          if (retryCountRef.current < 5) {
+            const timeout = Math.min(1000 * Math.pow(2, retryCountRef.current), 10000);
+            retryCountRef.current += 1;
+            reconnectTimeoutRef.current = setTimeout(connect, timeout);
           }
-        } catch {
-          // Ignore invalid JSON
-        }
-      };
-
-      ws.onclose = () => {
-        setIsConnected(false);
-      };
-
-      ws.onerror = () => {
-        setIsConnected(false);
-      };
-    } catch (err) {
-      console.warn("[WebSocket] Could not connect to room sync:", err);
-    }
-
-    return () => {
-      if (ws) {
-        ws.close();
-      }
+        };
+        ws.onerror = () => ws.close(); 
+      } catch (err) { console.warn("[WebSocket] Failed to construct:", err); }
     };
-  }, [roomCode, username]);
+
+    connect();
+    return () => {
+      isMounted = false;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (socketRef.current) { socketRef.current.onclose = null; socketRef.current.onerror = null; socketRef.current.close(); }
+    };
+  }, [roomCode, username, externalIsConnected]);
 
   const sendAction = useCallback((action, payload = {}) => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(
-        JSON.stringify({
-          action,
-          payload,
-        })
-      );
-    }
+    const msg = JSON.stringify({ action, payload });
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) socketRef.current.send(msg);
+    else if (socketRef.current && socketRef.current.readyState === WebSocket.CONNECTING) messageQueueRef.current.push(msg);
   }, []);
 
-  return {
-    isConnected,
-    sendAction,
-  };
+  return { isConnected, sendAction };
 }
