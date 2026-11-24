@@ -10,13 +10,13 @@ const ChevronIcon = ({ isOpen }) => (
 );
 
 export default function TrackList({
-  tracks = [], queue = [], currentTrack, isPlaying, activeTab = "discover",
+  queue = [], currentTrack, isPlaying, activeTab = "discover",
   searchQuery = "", onSearchChange, onSelectTrack, onAddToQueue, onRemoveFromQueue,
   onClearQueue, onLoadAllToQueue, localTracks = [], onImportLocalFiles,
   favorites = [], onToggleFavorite, currentRoomCode = "LOBBY", onJoinRoom,
   onCreateRoom, onExitRoom, listeners = [], user = null, onLogout,
   playlists = [], onAddToPlaylist, onDeletePlaylist, onRenamePlaylist, onCreatePlaylist, recentTracks = [],
-  topPlayedTracks = [],
+  topPlayedTracks = [], trendingTracks = [],
   effectiveSiteColor = "#ffffff", effectiveTextColor = "#ffffff", surfaceBg = "#000000",
 }) {
   const fileInputRef = useRef(null);
@@ -152,7 +152,7 @@ export default function TrackList({
             <div className="flex flex-col justify-between gap-4 pb-2 sm:flex-row sm:items-end">
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl capitalize">{isSearching ? "Search Results" : "Internet catalog"}</h2>
-                <p className="mt-1 text-xs opacity-65">{isSearching ? "Results fetched from the internet." : "Search the web or browse curated pixel streams."}</p>
+                <p className="mt-1 text-xs opacity-65">{isSearching ? "Smart ranked results matching description and community plays." : "Search the web, play trending songs, or upload your music."}</p>
               </div>
               <div className="flex items-center gap-2">
                 {isSearching && <button onClick={() => { setIsSearching(false); onSearchChange?.(""); }} className="pixel-btn rounded-xl bg-neutral-800 hover:bg-neutral-700 px-3.5 py-2 text-xs font-medium transition-colors duration-200">← Back to Home</button>}
@@ -246,29 +246,29 @@ export default function TrackList({
                   </div>
                 </div>
 
-                {/* TOP 6 */}
-                {topPlayedTracks.length > 0 && (
-                  <div className="flex flex-col gap-1 mt-6">
-                    <div className="flex items-center justify-between mb-1 px-1">
-                      <h3 className="text-sm font-medium">Most Played</h3>
-                      <span className="text-[10px] opacity-40">Your top rotation</span>
+                {/* TOP 5 MOST PLAYED / COMMUNITY TRENDING */}
+                {(() => {
+                  const displayTracks = trendingTracks.length > 0 ? trendingTracks : topPlayedTracks;
+                  return (
+                    <div className="flex flex-col gap-1 mt-6">
+                      <div className="flex items-center justify-between mb-1 px-1">
+                        <h3 className="text-sm font-medium">Most Played</h3>
+                        <span className="text-[10px] opacity-40">Top 5 community trending</span>
+                      </div>
+                      {displayTracks.length > 0 ? (
+                        <>
+                          <div className="hidden grid-cols-[2.5rem_3.5rem_1.5fr_1fr_4.5rem_14rem] items-center px-4 py-2 text-[10px] font-medium opacity-50 sm:grid"><span className="text-center">#</span><span>COVER</span><span>TITLE</span><span>ARTIST</span><span className="text-right">TIME</span><span className="text-right pr-2">ACTIONS</span></div>
+                          {displayTracks.slice(0, 5).map((track, idx) => renderTrackRow(track, idx, displayTracks))}
+                        </>
+                      ) : (
+                        <div className="rounded-2xl border border-neutral-800/80 bg-neutral-900/30 p-6 text-center">
+                          <p className="text-xs font-medium text-neutral-300">No trending songs yet</p>
+                          <p className="mt-1 text-[11px] opacity-50">Search and play any song to start the community leaderboard!</p>
+                        </div>
+                      )}
                     </div>
-                    <div className="hidden grid-cols-[2.5rem_3.5rem_1.5fr_1fr_4.5rem_14rem] items-center px-4 py-2 text-[10px] font-medium opacity-50 sm:grid"><span className="text-center">#</span><span>COVER</span><span>TITLE</span><span>ARTIST</span><span className="text-right">TIME</span><span className="text-right pr-2">ACTIONS</span></div>
-                    {topPlayedTracks.map((track, idx) => renderTrackRow(track, idx, topPlayedTracks))}
-                  </div>
-                )}
-
-                {/* CURATED CATALOG */}
-                {tracks && tracks.length > 0 && (
-                  <div className="flex flex-col gap-1 mt-6">
-                    <div className="flex items-center justify-between mb-1 px-1">
-                      <h3 className="text-sm font-medium">Curated Catalog</h3>
-                      <span className="text-[10px] opacity-40">{tracks.length} tracks</span>
-                    </div>
-                    <div className="hidden grid-cols-[2.5rem_3.5rem_1.5fr_1fr_4.5rem_14rem] items-center px-4 py-2 text-[10px] font-medium opacity-50 sm:grid"><span className="text-center">#</span><span>COVER</span><span>TITLE</span><span>ARTIST</span><span className="text-right">TIME</span><span className="text-right pr-2">ACTIONS</span></div>
-                    {tracks.map((track, idx) => renderTrackRow(track, idx, tracks))}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
           </div>

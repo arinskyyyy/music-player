@@ -115,6 +115,7 @@ export default function App() {
   const [wallpaper, setWallpaper] = useState(() => selectedMedia.src);
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
+  const [trendingTracks, setTrendingTracks] = useState([]);
   const [currentTrack, setCurrentTrack] = useState(DEFAULT_CATALOG[0]);
   const [currentPlaybackList, setCurrentPlaybackList] = useState(DEFAULT_CATALOG);
   const [queue, setQueue] = useState([]);
@@ -159,13 +160,29 @@ export default function App() {
   const addToRecents = (track) => setRecentTracks(prev => { const filtered = prev.filter(t => t.id !== track.id); return [track, ...filtered].slice(0, 50); });
   const incrementPlayCount = (track) => setPlayCounts(prev => ({ ...prev, [track.id]: (prev[track.id] || 0) + 1 }));
 
-  const allKnownTracks = [...catalog, ...localTracks, ...recentTracks, ...DEFAULT_CATALOG];
+  const fetchTrendingTracks = useCallback(() => {
+    fetch(`${API_BASE}/api/music/trending?limit=5`)
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        if (data?.tracks) setTrendingTracks(data.tracks);
+      })
+      .catch(() => {});
+  }, []);
+
+  const recordGlobalPlay = (track) => {
+    if (!track?.id || !track?.src || (typeof track.src === "string" && track.src.startsWith("blob:"))) return;
+    fetch(`${API_BASE}/api/music/record-play`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(track),
+    })
+      .then(() => fetchTrendingTracks())
+      .catch(() => {});
+  };
+
+  const allKnownTracks = [...catalog, ...localTracks, ...recentTracks];
   const uniqueTracks = Array.from(new Map(allKnownTracks.map(t => [t.id, t])).values());
-  const topPlayedTracks = uniqueTracks.filter(t => playCounts[t.id] > 0).sort((a, b) => playCounts[b.id] - playCounts[a.id]).slice(0, 6);
-  if (topPlayedTracks.length < 6) {
-    const defaultFill = DEFAULT_CATALOG.filter(t => !topPlayedTracks.some(tp => tp.id === t.id));
-    topPlayedTracks.push(...defaultFill.slice(0, 6 - topPlayedTracks.length));
-  }
+  const topPlayedTracks = uniqueTracks.filter(t => playCounts[t.id] > 0).sort((a, b) => playCounts[b.id] - playCounts[a.id]).slice(0, 5);
 
   const handleToggleFavorite = async (track) => {
     if (!track?.id) return;
@@ -218,6 +235,7 @@ export default function App() {
   const isFavorite = (trackId) => favorites.some(f => f.id === trackId);
 
   useEffect(() => { let isMounted = true; fetch(`${API_BASE}/api/music/catalog`).then((res) => res.ok ? res.json() : Promise.reject()).then((data) => { if (isMounted && data?.tracks?.length > 0) setCatalog(data.tracks); }).catch(() => {}); return () => { isMounted = false; }; }, []);
+  useEffect(() => { fetchTrendingTracks(); }, [fetchTrendingTracks]);
   useEffect(() => { const token = user?.token; if (!token) return; let cancelled = false; fetch(`${API_BASE}/api/music/favorites`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : Promise.reject()).then((data) => { if (cancelled) return; setFavorites(data.favorites || []); }).catch(() => {}); return () => { cancelled = true; }; }, [user?.token, user?.id]);
   useEffect(() => { if (!user?.token) return; fetch(`${API_BASE}/api/music/playlists`, { headers: { Authorization: `Bearer ${user.token}` } }).then(res => res.json()).then(data => setPlaylists(data.playlists || [])).catch(() => {}); }, [user?.token]);
 
@@ -258,7 +276,7 @@ export default function App() {
   const handleLoadedMetadata = () => { if (audioRef.current && audioRef.current.duration) setDuration(audioRef.current.duration); };
 
   const playTrackNow = (track) => {
-    setCurrentTrack(track); addToRecents(track); incrementPlayCount(track); 
+    setCurrentTrack(track); addToRecents(track); incrementPlayCount(track); recordGlobalPlay(track);
     if (!isRemoteAction.current) sendAction("CHANGE_TRACK", { track, current_time: 0 });
     const audio = audioRef.current;
     if (audio) { audio.src = track.src; audio.currentTime = 0; audio.play().then(() => setIsPlaying(true)).catch(() => setIsAudioLocked(true)); }
@@ -723,7 +741,7 @@ export default function App() {
                 listeners={listeners} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
                 playlists={playlists} onAddToPlaylist={handleAddToPlaylist} onDeletePlaylist={handleDeletePlaylist} 
                 onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} recentTracks={recentTracks}
-                topPlayedTracks={topPlayedTracks}
+                topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
               />
             )}
           </div>

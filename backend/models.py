@@ -56,3 +56,17 @@ class SavedPlaylist(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="playlists")
+
+class GlobalTrackPlay(Base):
+    __tablename__ = "global_track_plays"
+
+    id = Column(Integer, primary_key=True, index=True)
+    track_id = Column(String(255), unique=True, index=True, nullable=False)
+    title = Column(String(255), nullable=False)
+    artist = Column(String(255), nullable=False)
+    duration = Column(String(50), default="03:00")
+    src = Column(Text, nullable=False)
+    cover = Column(Text, nullable=True)
+    source_label = Column(String(50), default="ONLINE")
+    play_count = Column(Integer, default=1, index=True)
+    last_played_at = Column(DateTime, default=datetime.datetime.utcnow)
