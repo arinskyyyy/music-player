@@ -331,94 +331,98 @@ export default function App() {
   const handleSendCode = async () => { if (!forgotEmail.trim()) return setAuthError("Enter your email first."); try { const res = await fetch(`${API_BASE}/api/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail }) }); const data = await res.json(); if (res.ok) { setForgotStep(2); setAuthError(`Code sent. (DEV: ${data.dev_code})`); } else { setAuthError(data.detail || "Error sending code."); } } catch { setAuthError("Network error."); } };
   const handleResetPassword = async () => { if (!resetCode.trim() || !newPassword.trim()) return setAuthError("Code and new password required."); try { const res = await fetch(`${API_BASE}/api/auth/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail, code: resetCode, new_password: newPassword }) }); const data = await res.json(); if (res.ok) { setForgotStep(0); setMode("login"); setAuthError("Password reset! Please login."); setResetCode(""); setNewPassword(""); } else { setAuthError(data.detail || "Invalid code."); } } catch { setAuthError("Network error."); } };
 
-  const handleGoogleLogin = () => {
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!googleClientId) {
-      setAuthError("Google Client ID not configured in .env (VITE_GOOGLE_CLIENT_ID).");
-      return;
-    }
-    if (!window.google?.accounts?.id) {
-      setAuthError("Google Sign-In SDK is still loading, please try again.");
-      return;
-    }
-    window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      callback: async (response) => {
-        if (!response.credential) return;
-        setIsSubmitting(true);
-        setAuthError("");
-        try {
-          const res = await fetch(`${API_BASE}/api/auth/google`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id_token: response.credential }),
-          });
-          const data = await res.json();
-          if (res.ok) {
-            const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "google" };
-            localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
-            localStorage.setItem("syncroom_active_username", resolvedUser.username);
-            setUser(resolvedUser);
-            setIsAuthenticated(true);
-          } else {
-            setAuthError(data.detail || "Google authentication failed.");
-          }
-        } catch {
-          setAuthError("Network error during Google login.");
-        } finally {
-          setIsSubmitting(false);
-        }
-      },
-    });
-    window.google.accounts.id.prompt();
-  };
+  /* ==========================================================================
+     GOOGLE & APPLE OAUTH HANDLERS (Uncomment when ready to enable in production)
+     --------------------------------------------------------------------------
+     const handleGoogleLogin = () => {
+       const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+       if (!googleClientId) {
+         setAuthError("Google Client ID not configured in .env (VITE_GOOGLE_CLIENT_ID).");
+         return;
+       }
+       if (!window.google?.accounts?.id) {
+         setAuthError("Google Sign-In SDK is still loading, please try again.");
+         return;
+       }
+       window.google.accounts.id.initialize({
+         client_id: googleClientId,
+         callback: async (response) => {
+           if (!response.credential) return;
+           setIsSubmitting(true);
+           setAuthError("");
+           try {
+             const res = await fetch(`${API_BASE}/api/auth/google`, {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ id_token: response.credential }),
+             });
+             const data = await res.json();
+             if (res.ok) {
+               const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "google" };
+               localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
+               localStorage.setItem("syncroom_active_username", resolvedUser.username);
+               setUser(resolvedUser);
+               setIsAuthenticated(true);
+             } else {
+               setAuthError(data.detail || "Google authentication failed.");
+             }
+           } catch {
+             setAuthError("Network error during Google login.");
+           } finally {
+             setIsSubmitting(false);
+           }
+         },
+       });
+       window.google.accounts.id.prompt();
+     };
 
-  const handleAppleLogin = async () => {
-    const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID;
-    if (!appleClientId) {
-      setAuthError("Apple Client ID not configured in .env (VITE_APPLE_CLIENT_ID).");
-      return;
-    }
-    if (!window.AppleID?.auth) {
-      setAuthError("Apple Sign-In SDK is still loading, please try again.");
-      return;
-    }
-    try {
-      window.AppleID.auth.init({
-        clientId: appleClientId,
-        scope: "name email",
-        redirectURI: window.location.origin,
-        usePopup: true,
-      });
-      const response = await window.AppleID.auth.signIn();
-      const idToken = response?.authorization?.id_token;
-      if (!idToken) return;
+     const handleAppleLogin = async () => {
+       const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID;
+       if (!appleClientId) {
+         setAuthError("Apple Client ID not configured in .env (VITE_APPLE_CLIENT_ID).");
+         return;
+       }
+       if (!window.AppleID?.auth) {
+         setAuthError("Apple Sign-In SDK is still loading, please try again.");
+         return;
+       }
+       try {
+         window.AppleID.auth.init({
+           clientId: appleClientId,
+           scope: "name email",
+           redirectURI: window.location.origin,
+           usePopup: true,
+         });
+         const response = await window.AppleID.auth.signIn();
+         const idToken = response?.authorization?.id_token;
+         if (!idToken) return;
 
-      setIsSubmitting(true);
-      setAuthError("");
-      const res = await fetch(`${API_BASE}/api/auth/apple`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: idToken }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "apple" };
-        localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
-        localStorage.setItem("syncroom_active_username", resolvedUser.username);
-        setUser(resolvedUser);
-        setIsAuthenticated(true);
-      } else {
-        setAuthError(data.detail || "Apple authentication failed.");
-      }
-    } catch (err) {
-      if (err?.error !== "popup_closed_by_user") {
-        setAuthError(err?.error || "Apple authentication error.");
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+         setIsSubmitting(true);
+         setAuthError("");
+         const res = await fetch(`${API_BASE}/api/auth/apple`, {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ id_token: idToken }),
+         });
+         const data = await res.json();
+         if (res.ok) {
+           const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "apple" };
+           localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
+           localStorage.setItem("syncroom_active_username", resolvedUser.username);
+           setUser(resolvedUser);
+           setIsAuthenticated(true);
+         } else {
+           setAuthError(data.detail || "Apple authentication failed.");
+         }
+       } catch (err) {
+         if (err?.error !== "popup_closed_by_user") {
+           setAuthError(err?.error || "Apple authentication error.");
+         }
+       } finally {
+         setIsSubmitting(false);
+       }
+     };
+     ========================================================================== */
   
   function handleSubmit(e) { e.preventDefault(); completeEntry(); }
   function handleInputKeyDown(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); completeEntry(); } }
@@ -540,6 +544,10 @@ export default function App() {
                         </button>
                       </div>
 
+                      {/* ==========================================================================
+                          SOCIAL LOGINS (Google / Apple)
+                          Uncomment below and the handlers above when ready for production!
+                          --------------------------------------------------------------------------
                       <div className="relative my-3.5 flex items-center justify-center">
                         <div className="w-full border-t" style={{ borderColor: `${DARK_SILVER_BORDER}50` }} />
                         <span style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="absolute px-2 text-[10px] font-medium uppercase opacity-50 tracking-wider">or continue with</span>
@@ -575,6 +583,7 @@ export default function App() {
                           <span>Apple</span>
                         </button>
                       </div>
+                      ========================================================================== */}
                     </form>
 
                     <div className="mt-5 flex items-center justify-between border-t pt-3 text-xs opacity-75" style={{ borderColor: `${DARK_SILVER_BORDER}60` }}>
