@@ -330,6 +330,95 @@ export default function App() {
 
   const handleSendCode = async () => { if (!forgotEmail.trim()) return setAuthError("Enter your email first."); try { const res = await fetch(`${API_BASE}/api/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail }) }); const data = await res.json(); if (res.ok) { setForgotStep(2); setAuthError(`Code sent. (DEV: ${data.dev_code})`); } else { setAuthError(data.detail || "Error sending code."); } } catch { setAuthError("Network error."); } };
   const handleResetPassword = async () => { if (!resetCode.trim() || !newPassword.trim()) return setAuthError("Code and new password required."); try { const res = await fetch(`${API_BASE}/api/auth/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail, code: resetCode, new_password: newPassword }) }); const data = await res.json(); if (res.ok) { setForgotStep(0); setMode("login"); setAuthError("Password reset! Please login."); setResetCode(""); setNewPassword(""); } else { setAuthError(data.detail || "Invalid code."); } } catch { setAuthError("Network error."); } };
+
+  const handleGoogleLogin = () => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!googleClientId) {
+      setAuthError("Google Client ID not configured in .env (VITE_GOOGLE_CLIENT_ID).");
+      return;
+    }
+    if (!window.google?.accounts?.id) {
+      setAuthError("Google Sign-In SDK is still loading, please try again.");
+      return;
+    }
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: async (response) => {
+        if (!response.credential) return;
+        setIsSubmitting(true);
+        setAuthError("");
+        try {
+          const res = await fetch(`${API_BASE}/api/auth/google`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id_token: response.credential }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "google" };
+            localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
+            localStorage.setItem("syncroom_active_username", resolvedUser.username);
+            setUser(resolvedUser);
+            setIsAuthenticated(true);
+          } else {
+            setAuthError(data.detail || "Google authentication failed.");
+          }
+        } catch {
+          setAuthError("Network error during Google login.");
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
+    window.google.accounts.id.prompt();
+  };
+
+  const handleAppleLogin = async () => {
+    const appleClientId = import.meta.env.VITE_APPLE_CLIENT_ID;
+    if (!appleClientId) {
+      setAuthError("Apple Client ID not configured in .env (VITE_APPLE_CLIENT_ID).");
+      return;
+    }
+    if (!window.AppleID?.auth) {
+      setAuthError("Apple Sign-In SDK is still loading, please try again.");
+      return;
+    }
+    try {
+      window.AppleID.auth.init({
+        clientId: appleClientId,
+        scope: "name email",
+        redirectURI: window.location.origin,
+        usePopup: true,
+      });
+      const response = await window.AppleID.auth.signIn();
+      const idToken = response?.authorization?.id_token;
+      if (!idToken) return;
+
+      setIsSubmitting(true);
+      setAuthError("");
+      const res = await fetch(`${API_BASE}/api/auth/apple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode: "apple" };
+        localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser));
+        localStorage.setItem("syncroom_active_username", resolvedUser.username);
+        setUser(resolvedUser);
+        setIsAuthenticated(true);
+      } else {
+        setAuthError(data.detail || "Apple authentication failed.");
+      }
+    } catch (err) {
+      if (err?.error !== "popup_closed_by_user") {
+        setAuthError(err?.error || "Apple authentication error.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   
   function handleSubmit(e) { e.preventDefault(); completeEntry(); }
   function handleInputKeyDown(e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); completeEntry(); } }
@@ -448,6 +537,42 @@ export default function App() {
                         </button>
                         <button type="button" onClick={() => setIsMuted((prev) => !prev)} style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "14px" }} className="pixel-btn rounded-xl border px-3 py-2.5 text-xs font-medium">
                           {isMuted ? "Unmute" : "Mute"}
+                        </button>
+                      </div>
+
+                      <div className="relative my-3.5 flex items-center justify-center">
+                        <div className="w-full border-t" style={{ borderColor: `${DARK_SILVER_BORDER}50` }} />
+                        <span style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="absolute px-2 text-[10px] font-medium uppercase opacity-50 tracking-wider">or continue with</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleGoogleLogin}
+                          disabled={isSubmitting}
+                          style={{ borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }}
+                          className="pixel-btn flex items-center justify-center gap-2 rounded-xl border bg-neutral-900/60 hover:bg-neutral-800 py-2 text-xs font-medium transition-colors"
+                        >
+                          <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                          </svg>
+                          <span>Google</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleAppleLogin}
+                          disabled={isSubmitting}
+                          style={{ borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }}
+                          className="pixel-btn flex items-center justify-center gap-2 rounded-xl border bg-neutral-900/60 hover:bg-neutral-800 py-2 text-xs font-medium transition-colors"
+                        >
+                          <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 170 170" fill="currentColor">
+                            <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.66-7.8-11.89-14.28-6.19-9.56-11.1-20.73-14.73-33.51-3.63-12.78-5.45-24.36-5.45-34.74 0-14.46 3.73-26.68 11.19-36.66 7.46-9.98 16.9-15.08 28.32-15.3 4.9 0 10.51 1.25 16.83 3.76 6.32 2.51 10.3 3.82 11.95 3.93 2.13-.22 6.38-1.58 12.74-4.09 6.36-2.51 11.75-3.65 16.18-3.44 12.53.65 22.42 5.12 29.67 13.41-10.9 6.64-16.23 15.68-16.01 27.12.22 9.04 3.65 16.71 10.29 23.01 6.64 6.3 14.59 10.02 23.86 11.16-2.18 6.54-4.8 13.1-7.86 19.68zM119.22 31.97c0-7.41 2.67-14.41 8.01-21 5.34-6.59 11.93-10.62 19.78-12.09.22 1.09.33 2.18.33 3.27 0 7.3-2.83 14.42-8.49 21.36-5.66 6.94-12.2 11.02-19.63 12.24z"/>
+                          </svg>
+                          <span>Apple</span>
                         </button>
                       </div>
                     </form>

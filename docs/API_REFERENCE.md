@@ -3,6 +3,8 @@
 ## Authentication Endpoints
 - `POST /api/auth/register` - Register a new listener account.
 - `POST /api/auth/login` - Login with username/email and password.
+- `POST /api/auth/google` - Verify Google OAuth ID token & authenticate/register user.
+- `POST /api/auth/apple` - Verify Apple ID token & authenticate/register user.
 - `POST /api/auth/forgot-password` - Request a password reset code.
 - `POST /api/auth/reset-password` - Reset password using 6-digit code.
 - `GET /api/auth/me` - Get current authenticated user profile.

@@ -14,3 +14,8 @@ def test_token_creation():
     payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
     assert payload.get("sub") == "42"
     assert payload.get("username") == "pixel_listener"
+
+def test_oauth_model():
+    from backend.routers.auth import OAuthLoginRequest
+    req = OAuthLoginRequest(id_token="sample_id_token_123")
+    assert req.id_token == "sample_id_token_123"

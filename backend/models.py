@@ -9,7 +9,9 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(120), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)
+    auth_provider = Column(String(20), default="local")
+    provider_id = Column(String(255), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Persist user stats across devices/logins

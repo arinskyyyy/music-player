@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from jose import JWTError, jwt
 import bcrypt, secrets
+import httpx
 from backend.database import get_db
 from backend.models import User
 from backend.config import settings
@@ -35,12 +36,16 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
+    auth_provider: Optional[str] = "local"
     class Config: from_attributes = True
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserResponse
+
+class OAuthLoginRequest(BaseModel):
+    id_token: str
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try: return bcrypt.checkpw(plain_password.encode("utf-8")[:72], hashed_password.encode("utf-8"))
@@ -111,3 +116,121 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)): return current_user
+
+async def verify_google_id_token(token: str) -> dict:
+    """Verifies Google ID token against Google's tokeninfo API and audience."""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if settings.GOOGLE_CLIENT_ID and data.get("aud") != settings.GOOGLE_CLIENT_ID:
+                    raise HTTPException(status_code=401, detail="Google token audience does not match configured GOOGLE_CLIENT_ID")
+                return data
+            err_data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+            raise HTTPException(status_code=401, detail=err_data.get("error_description", "Invalid Google ID token"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Google token verification failed: {str(e)}")
+
+async def verify_apple_id_token(token: str) -> dict:
+    """Verifies Apple ID token against Apple's public JWKS."""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get("https://appleid.apple.com/auth/keys")
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Failed to fetch Apple public keys")
+            apple_keys = resp.json().get("keys", [])
+
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid")
+        key_data = next((k for k in apple_keys if k.get("kid") == kid), None)
+        if not key_data:
+            raise HTTPException(status_code=401, detail="Matching Apple public key not found")
+
+        claims = jwt.decode(
+            token,
+            key_data,
+            algorithms=["RS256"],
+            audience=settings.APPLE_CLIENT_ID if settings.APPLE_CLIENT_ID else None,
+            issuer="https://appleid.apple.com"
+        )
+        return claims
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Apple token verification failed: {str(e)}")
+
+@router.post("/google", response_model=TokenResponse)
+async def login_with_google(req: OAuthLoginRequest, db: Session = Depends(get_db)):
+    profile = await verify_google_id_token(req.id_token)
+    email = profile.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account did not return an email address")
+    sub = profile.get("sub", "")
+    name = profile.get("name") or profile.get("given_name") or email.split("@")[0]
+
+    user = db.query(User).filter((User.email == email) | ((User.provider_id == sub) & (User.auth_provider == "google"))).first()
+    if not user:
+        clean_name = "".join(c for c in name.replace(" ", "_").lower() if c.isalnum() or c in "_-")[:20] or "google_listener"
+        username = clean_name
+        counter = 1
+        while db.query(User).filter(User.username == username).first():
+            username = f"{clean_name}_{counter}"
+            counter += 1
+
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=f"oauth:google:{sub}",
+            auth_provider="google",
+            provider_id=sub
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif not user.provider_id:
+        user.auth_provider = "google"
+        user.provider_id = sub
+        db.commit()
+
+    token = create_access_token({"sub": str(user.id), "username": user.username})
+    return TokenResponse(access_token=token, token_type="bearer", user=UserResponse.model_validate(user))
+
+@router.post("/apple", response_model=TokenResponse)
+async def login_with_apple(req: OAuthLoginRequest, db: Session = Depends(get_db)):
+    profile = await verify_apple_id_token(req.id_token)
+    email = profile.get("email", "").strip().lower()
+    sub = profile.get("sub", "")
+    if not sub:
+        raise HTTPException(status_code=400, detail="Apple token has no subject identifier")
+    if not email:
+        email = f"{sub[:12]}@privaterelay.appleid.com"
+
+    user = db.query(User).filter(((User.provider_id == sub) & (User.auth_provider == "apple")) | (User.email == email)).first()
+    if not user:
+        base_username = "apple_" + sub[:8]
+        username = base_username
+        counter = 1
+        while db.query(User).filter(User.username == username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=f"oauth:apple:{sub}",
+            auth_provider="apple",
+            provider_id=sub
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif not user.provider_id:
+        user.auth_provider = "apple"
+        user.provider_id = sub
+        db.commit()
+
+    token = create_access_token({"sub": str(user.id), "username": user.username})
+    return TokenResponse(access_token=token, token_type="bearer", user=UserResponse.model_validate(user))
