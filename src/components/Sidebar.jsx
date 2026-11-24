@@ -65,7 +65,7 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
               <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-950 font-medium text-xs"><span style={{ color: effectiveSiteColor }}>{user?.username ? user.username.charAt(0).toUpperCase() : "P"}</span></div>
-              <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{user?.username || "GUEST"}</p><p className="truncate text-[10px] opacity-50">{user?.email || "offline"}</p></div>
+              <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{user?.username || "User"}</p><p className="truncate text-[10px] opacity-50">{user?.email || ""}</p></div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button type="button" onClick={() => setIsRoomOptionsOpen((prev) => !prev)} title="Room Options & Controls" className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 text-neutral-300 hover:text-white transition-colors duration-200">

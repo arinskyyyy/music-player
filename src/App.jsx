@@ -62,7 +62,20 @@ export default function App() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isAudioLocked, setIsAudioLocked] = useState(false);
 
-  const [user, setUser] = useState(() => { try { const saved = localStorage.getItem("syncroom_user"); return saved ? JSON.parse(saved) : null; } catch { return null; } });
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("syncroom_user");
+      const parsed = saved ? JSON.parse(saved) : null;
+      if (parsed && (!parsed.token || parsed.offline)) {
+        localStorage.removeItem("syncroom_user");
+        localStorage.removeItem("syncroom_active_username");
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!user);
   const [activeView, setActiveView] = useState("workspace");
 
@@ -589,15 +602,6 @@ export default function App() {
                     <div className="mt-5 flex items-center justify-between border-t pt-3 text-xs opacity-75" style={{ borderColor: `${DARK_SILVER_BORDER}60` }}>
                       <button type="button" onClick={() => { setForgotStep(1); setAuthError(""); setForgotEmail(email || loginIdentifier); }} className="cursor-pointer text-xs underline-offset-4 hover:underline">Forgot Password?</button>
                       <span className="text-[10px] opacity-60">SyncRoom Stereo</span>
-                      <button type="button" onClick={() => {
-                        const guestUser = { id: 0, username: "GuestListener", email: "guest@offline", token: null, offline: true };
-                        localStorage.setItem("syncroom_user", JSON.stringify(guestUser));
-                        localStorage.setItem("syncroom_active_username", guestUser.username);
-                        setUser(guestUser);
-                        setIsAuthenticated(true);
-                      }} className="cursor-pointer text-xs opacity-80 hover:opacity-100 underline-offset-4 hover:underline">
-                        Guest Mode
-                      </button>
                     </div>
 
                     {submittedUser && (

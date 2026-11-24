@@ -386,10 +386,10 @@ export default function TrackList({
               <div style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-medium">{user?.username ? user.username.charAt(0).toUpperCase() : "P"}</div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="truncate text-lg font-medium">{user?.username || "GUEST"}</h3>
-                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${user?.offline ? "bg-neutral-800 text-neutral-400" : "bg-emerald-400/20 text-emerald-300"}`}>{user?.offline ? "LOCAL MODE" : "SYNCED ACCOUNT"}</span>
+                  <h3 className="truncate text-lg font-medium">{user?.username || "User"}</h3>
+                  <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-emerald-400/20 text-emerald-300">SYNCED ACCOUNT</span>
                 </div>
-                <p className="truncate text-xs opacity-60">{user?.email || "offline"}</p>
+                <p className="truncate text-xs opacity-60">{user?.email || ""}</p>
               </div>
               <button type="button" onClick={onLogout} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn shrink-0 rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 hover:opacity-80">LOGOUT</button>
             </div>
