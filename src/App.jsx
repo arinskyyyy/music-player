@@ -89,6 +89,7 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submittedUser, setSubmittedUser] = useState(null);
   const [authError, setAuthError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -338,7 +339,7 @@ export default function App() {
           setUser(resolvedUser); setIsAuthenticated(true); setIsSubmitting(false);
         }
       } else { const errData = await res.json().catch(() => ({})); setAuthError(errData.detail || "Authentication error occurred"); setIsSubmitting(false); }
-    } catch { setAuthError("Network error. Please try again."); setIsSubmitting(false); }
+    } catch { setAuthError("Server is unreachable. Please verify the backend is running on port 8000."); setIsSubmitting(false); }
   }
 
   const handleSendCode = async () => { if (!forgotEmail.trim()) return setAuthError("Enter your email first."); try { const res = await fetch(`${API_BASE}/api/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail }) }); const data = await res.json(); if (res.ok) { setForgotStep(2); setAuthError(`Code sent. (DEV: ${data.dev_code})`); } else { setAuthError(data.detail || "Error sending code."); } } catch { setAuthError("Network error."); } };
@@ -504,7 +505,21 @@ export default function App() {
                     <div className="space-y-3">
                       <p className="text-xs opacity-75">Enter the code sent to {forgotEmail} and your new password.</p>
                       <input type="text" value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="6-digit code" style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }} className="w-full rounded-xl border px-3.5 py-2 text-xs focus:outline-none" />
-                      <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New Password" style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }} className="w-full rounded-xl border px-3.5 py-2 text-xs focus:outline-none" />
+                      <div className="relative">
+                        <input type={showPassword ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New Password" style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }} className="w-full rounded-xl border px-3.5 py-2 pr-10 text-xs focus:outline-none" />
+                        <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100 transition-opacity" title={showPassword ? "Hide password" : "Show password"} aria-label={showPassword ? "Hide password" : "Show password"}>
+                          {showPassword ? (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                            </svg>
+                          ) : (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                       <button type="button" onClick={handleResetPassword} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn w-full rounded-xl py-2.5 text-xs font-medium mt-2">Reset Password</button>
                     </div>
                   )}
@@ -543,7 +558,21 @@ export default function App() {
 
                       <div>
                         <label style={{ color: effectiveTextColor }} className="mb-1.5 block text-xs font-semibold opacity-75">Password</label>
-                        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleInputKeyDown} placeholder="••••••••" style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }} className="w-full rounded-xl border px-3.5 py-2 text-xs sm:text-sm placeholder-neutral-600 focus:outline-none" />
+                        <div className="relative">
+                          <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleInputKeyDown} placeholder="••••••••" style={{ backgroundColor: surfaceBg, color: effectiveTextColor, borderColor: DARK_SILVER_BORDER, borderRadius: "12px" }} className="w-full rounded-xl border px-3.5 py-2 pr-10 text-xs sm:text-sm placeholder-neutral-600 focus:outline-none" />
+                          <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100 transition-opacity" title={showPassword ? "Hide password" : "Show password"} aria-label={showPassword ? "Hide password" : "Show password"}>
+                            {showPassword ? (
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                              </svg>
+                            ) : (
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {authError && <div style={{ borderColor: "#ef4444", color: "#f87171" }} className="auth-soft-enter rounded-xl border bg-red-950/40 px-3.5 py-2 text-center text-xs font-semibold">{authError}</div>}

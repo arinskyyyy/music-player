@@ -11,7 +11,12 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, description="SyncRoom Audio API")
 
 app.add_middleware(
-    CORSMiddleware, allow_origins=settings.CORS_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router)
