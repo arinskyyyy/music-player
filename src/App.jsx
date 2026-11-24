@@ -588,6 +588,7 @@ export default function App() {
 
                     <div className="mt-5 flex items-center justify-between border-t pt-3 text-xs opacity-75" style={{ borderColor: `${DARK_SILVER_BORDER}60` }}>
                       <button type="button" onClick={() => { setForgotStep(1); setAuthError(""); setForgotEmail(email || loginIdentifier); }} className="cursor-pointer text-xs underline-offset-4 hover:underline">Forgot Password?</button>
+                      <span className="text-[10px] opacity-60">SyncRoom Stereo</span>
                       <button type="button" onClick={() => {
                         const guestUser = { id: 0, username: "GuestListener", email: "guest@offline", token: null, offline: true };
                         localStorage.setItem("syncroom_user", JSON.stringify(guestUser));
@@ -597,7 +598,6 @@ export default function App() {
                       }} className="cursor-pointer text-xs opacity-80 hover:opacity-100 underline-offset-4 hover:underline">
                         Guest Mode
                       </button>
-                      <span className="text-[10px] opacity-60">SyncRoom Stereo</span>
                     </div>
 
                     {submittedUser && (
