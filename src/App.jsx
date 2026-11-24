@@ -232,6 +232,24 @@ export default function App() {
     } catch { /* ignore */ }
   };
 
+  const handleRemoveTrackFromPlaylist = async (playlistId, trackId) => {
+    if (!user?.token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/music/playlists/${playlistId}/tracks/${trackId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      if (res.ok) {
+        setPlaylists(prev => prev.map(p => {
+          if (p.id === playlistId) {
+            return { ...p, tracks: (p.tracks || []).filter(t => t.id !== trackId) };
+          }
+          return p;
+        }));
+      }
+    } catch { /* ignore */ }
+  };
+
   const isFavorite = (trackId) => favorites.some(f => f.id === trackId);
 
   useEffect(() => { let isMounted = true; fetch(`${API_BASE}/api/music/catalog`).then((res) => res.ok ? res.json() : Promise.reject()).then((data) => { if (isMounted && data?.tracks?.length > 0) setCatalog(data.tracks); }).catch(() => {}); return () => { isMounted = false; }; }, []);
@@ -740,7 +758,7 @@ export default function App() {
                 currentRoomCode={roomCode} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} onExitRoom={handleExitRoom}
                 listeners={listeners} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
                 playlists={playlists} onAddToPlaylist={handleAddToPlaylist} onDeletePlaylist={handleDeletePlaylist} 
-                onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} recentTracks={recentTracks}
+                onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist} recentTracks={recentTracks}
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
               />
             )}

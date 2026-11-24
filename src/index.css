@@ -20,3 +20,49 @@
         cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 16 16'%3E%3Cpath fill='%23000000' d='M6 1h3v6h1V6h1v1h1v1h1v6h-1v1H5v-2H4v-2H3V8h3V1z'/%3E%3Cpath fill='%23ffffff' d='M7 2h1v6h2v1h1v5H6v-2H5v-2H4V9h3V2z'/%3E%3C/svg%3E") 6 1, pointer;
     }
 }
+
+/* Premium Tab Content Transitions & Micro-animations */
+@keyframes tabContentEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(6px) scale(0.995);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.tab-content-enter {
+    animation: tabContentEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes popoverScaleEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes popoverScaleExit {
+    0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(6px) scale(0.96);
+    }
+}
+
+.popover-enter {
+    animation: popoverScaleEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.popover-exit {
+    animation: popoverScaleExit 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

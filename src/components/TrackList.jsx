@@ -15,7 +15,7 @@ export default function TrackList({
   onClearQueue, onLoadAllToQueue, localTracks = [], onImportLocalFiles,
   favorites = [], onToggleFavorite, currentRoomCode = "LOBBY", onJoinRoom,
   onCreateRoom, onExitRoom, listeners = [], user = null, onLogout,
-  playlists = [], onAddToPlaylist, onDeletePlaylist, onRenamePlaylist, onCreatePlaylist, recentTracks = [],
+  playlists = [], onAddToPlaylist, onDeletePlaylist, onRenamePlaylist, onCreatePlaylist, onRemoveTrackFromPlaylist, recentTracks = [],
   topPlayedTracks = [], trendingTracks = [],
   effectiveSiteColor = "#ffffff", effectiveTextColor = "#ffffff", surfaceBg = "#000000",
 }) {
@@ -146,7 +146,7 @@ export default function TrackList({
 
   return (
     <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
-      <div key={activeTab} className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div key={activeTab} className="tab-content-enter">
         {activeTab === "discover" && (
           <div className="flex flex-col gap-6">
             <div className="flex flex-col justify-between gap-4 pb-2 sm:flex-row sm:items-end">
@@ -170,17 +170,43 @@ export default function TrackList({
             ) : (
               <div className="flex flex-col gap-4 mt-2">
                 {/* FAVORITES */}
-                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300">
+                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-30">
                   <button onClick={() => setExpandedFavs(!expandedFavs)} className="flex w-full items-center justify-between text-sm font-medium mb-2 group"><span>Your Favorites</span><span className="opacity-50 group-hover:opacity-100 transition-opacity duration-200"><ChevronIcon isOpen={expandedFavs} /></span></button>
-                  <div className={`overflow-hidden transition-all duration-300 ${expandedFavs ? "max-h-[800px] opacity-100 mt-3" : "max-h-0 opacity-0"}`}>
+                  <div className={`transition-all duration-300 ${expandedFavs ? "opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"}`}>
                     {favorites.length > 0 ? (
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-1.5">
                         {(showAllFavs ? favorites : favorites.slice(0, 5)).map(t => (
-                          <div key={t.id} className="flex items-center justify-between text-xs group relative">
-                            <div className="flex items-center gap-2 cursor-pointer flex-1 hover:opacity-80 transition-opacity duration-200" onClick={() => onSelectTrack(t, favorites)}><span className="truncate pr-2">{t.title}</span><span className="opacity-50 text-[10px]">{t.artist}</span></div>
+                          <div key={t.id} className="flex items-center justify-between text-xs group relative rounded-lg px-2 py-1.5 hover:bg-neutral-800/40 transition-colors">
+                            <div className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 hover:opacity-80 transition-opacity duration-200" onClick={() => onSelectTrack(t, favorites)}>
+                              <span className="truncate font-medium">{t.title}</span>
+                              <span className="opacity-50 text-[10px] truncate">• {t.artist}</span>
+                            </div>
                             <div className="relative shrink-0">
-                              <button onClick={(e) => { e.stopPropagation(); setOpenFavMenu(prev => prev === t.id ? null : t.id); }} className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200">⋯</button>
-                              {openFavMenu === t.id && <div style={{ backgroundColor: surfaceBg === "#000000" ? "#1f1f1f" : "#ffffff" }} className="absolute right-0 top-full mt-1 w-32 rounded-lg border border-neutral-800 shadow-xl p-1 z-[100] animate-in fade-in zoom-in-95 duration-100"><button onClick={(e) => { e.stopPropagation(); onToggleFavorite(t); setOpenFavMenu(null); }} className="block w-full text-left px-2 py-1.5 text-[10px] text-red-400 hover:bg-neutral-800 rounded transition-colors duration-200">Remove</button></div>}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setOpenFavMenu(prev => prev === t.id ? null : t.id); }}
+                                className="pixel-btn flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors duration-200"
+                                title="Options"
+                              >
+                                ⋯
+                              </button>
+                              {openFavMenu === t.id && (
+                                <div
+                                  style={{ backgroundColor: surfaceBg === "#000000" ? "#1a1a1a" : "#ffffff", color: effectiveTextColor }}
+                                  className="absolute right-0 top-full mt-1.5 w-36 rounded-xl border border-neutral-700/80 shadow-2xl p-1.5 z-[150] animate-in fade-in zoom-in-95 duration-150"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(t); setOpenFavMenu(null); }}
+                                    className="flex w-full items-center gap-2 text-left px-2.5 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors duration-150 font-medium"
+                                  >
+                                    <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span>Remove favorite</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -192,7 +218,7 @@ export default function TrackList({
                 </div>
 
                 {/* PLAYLISTS */}
-                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300">
+                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-20">
                   <div className="flex w-full items-center justify-between text-sm font-medium mb-2">
                     <span className="flex-1">Your Playlists</span>
                     <div className="flex items-center gap-2">
@@ -200,29 +226,51 @@ export default function TrackList({
                       <button onClick={() => setExpandedPlaylists(!expandedPlaylists)} className="opacity-50 hover:opacity-100 group transition-opacity duration-200"><ChevronIcon isOpen={expandedPlaylists} /></button>
                     </div>
                   </div>
-                  <div className={`transition-all duration-300 ${expandedPlaylists ? "opacity-100 mt-3" : "max-h-0 opacity-0 overflow-hidden"}`}>
+                  <div className={`transition-all duration-300 ${expandedPlaylists ? "opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"}`}>
                     {playlists.length > 0 ? (
                       <div className="flex flex-col gap-2">
                         {playlists.map(p => (
                           <div key={p.id} className="flex flex-col">
-                            <div className="flex items-center justify-between text-xs group relative">
-                              <div className="flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80 transition-opacity duration-200" onClick={() => setExpandedPlaylistId(expandedPlaylistId === p.id ? null : p.id)}>
-                                {editingPlaylistId === p.id ? <input autoFocus type="text" value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={() => handleRenameSubmit(p.id)} onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit(p.id)} className="bg-neutral-800 px-1 py-0.5 rounded text-xs w-full outline-none border border-neutral-600" onClick={(e) => e.stopPropagation()} /> : <span className="truncate pr-2 flex-1">{p.name}</span>}
-                                <span className="opacity-50 text-[10px]">{p.tracks?.length || 0} tracks</span>
+                            <div className="flex items-center justify-between text-xs group relative rounded-lg px-2 py-1.5 hover:bg-neutral-800/40 transition-colors">
+                              <div className="flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80 transition-opacity duration-200 min-w-0" onClick={() => setExpandedPlaylistId(expandedPlaylistId === p.id ? null : p.id)}>
+                                {editingPlaylistId === p.id ? <input autoFocus type="text" value={editName} onChange={(e) => setEditName(e.target.value)} onBlur={() => handleRenameSubmit(p.id)} onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit(p.id)} className="bg-neutral-800 px-1 py-0.5 rounded text-xs w-full outline-none border border-neutral-600" onClick={(e) => e.stopPropagation()} /> : <span className="truncate pr-2 flex-1 font-medium">{p.name}</span>}
+                                <span className="opacity-50 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
                               </div>
                               <div className="relative shrink-0">
-                                <button onClick={(e) => { e.stopPropagation(); setOpenPlaylistMenu(prev => prev === p.id ? null : p.id); }} className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200">⋯</button>
+                                <button onClick={(e) => { e.stopPropagation(); setOpenPlaylistMenu(prev => prev === p.id ? null : p.id); }} className="pixel-btn flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors duration-200">⋯</button>
                                 {openPlaylistMenu === p.id && (
-                                  <div style={{ backgroundColor: surfaceBg === "#000000" ? "#1f1f1f" : "#ffffff" }} className="absolute right-0 top-full mt-1 w-32 rounded-lg border border-neutral-800 shadow-xl p-1 z-[100] animate-in fade-in zoom-in-95 duration-100">
-                                    <button onClick={() => { setEditingPlaylistId(p.id); setEditName(p.name); setOpenPlaylistMenu(null); }} className="block w-full text-left px-2 py-1.5 text-[10px] text-neutral-300 hover:bg-neutral-800 rounded transition-colors duration-200">Rename</button>
-                                    <button onClick={() => { onDeletePlaylist?.(p.id); setOpenPlaylistMenu(null); }} className="block w-full text-left px-2 py-1.5 text-[10px] text-red-400 hover:bg-neutral-800 rounded transition-colors duration-200">Delete Playlist</button>
+                                  <div style={{ backgroundColor: surfaceBg === "#000000" ? "#1f1f1f" : "#ffffff" }} className="absolute right-0 top-full mt-1.5 w-36 rounded-xl border border-neutral-700/80 shadow-2xl p-1.5 z-[150] animate-in fade-in zoom-in-95 duration-150">
+                                    <button onClick={() => { setEditingPlaylistId(p.id); setEditName(p.name); setOpenPlaylistMenu(null); }} className="block w-full text-left px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors duration-150">Rename</button>
+                                    <button onClick={() => { onDeletePlaylist?.(p.id); setOpenPlaylistMenu(null); }} className="block w-full text-left px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors duration-150">Delete Playlist</button>
                                   </div>
                                 )}
                               </div>
                             </div>
                             {expandedPlaylistId === p.id && (
-                              <div className="mt-2 pl-3 border-l border-neutral-700 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1">
-                                {p.tracks && p.tracks.length > 0 ? p.tracks.map((track, i) => <div key={i} className="flex items-center justify-between text-[10px] text-neutral-400 hover:text-white cursor-pointer transition-colors duration-200" onClick={() => onSelectTrack(track, p.tracks)}><span className="truncate pr-2">{track.title}</span><span className="truncate opacity-50">{track.artist}</span></div>) : <p className="text-[10px] opacity-40">Empty playlist.</p>}
+                              <div className="mt-2 pl-3 border-l border-neutral-700/80 flex flex-col gap-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                                {p.tracks && p.tracks.length > 0 ? p.tracks.map((track, i) => (
+                                  <div key={`${track.id}-${i}`} className="group/track flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800/60 hover:text-white transition-all duration-150">
+                                    <div className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={() => onSelectTrack(track, p.tracks)}>
+                                      <span className="text-[10px] opacity-40 font-mono w-4 shrink-0">#{i + 1}</span>
+                                      <span className="truncate font-medium">{track.title}</span>
+                                      <span className="truncate text-[10px] opacity-50">• {track.artist}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-[10px] opacity-40 font-mono">{track.duration || "03:00"}</span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onRemoveTrackFromPlaylist?.(p.id, track.id);
+                                        }}
+                                        title="Remove from playlist"
+                                        className="pixel-btn flex h-5 w-5 items-center justify-center rounded text-neutral-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  </div>
+                                )) : <p className="text-[10px] opacity-40 py-1 pl-1">Empty playlist. Add songs using the search bar.</p>}
                               </div>
                             )}
                           </div>

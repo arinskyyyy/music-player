@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { formatRoomCode } from "../roomCode";
 
 const WALLPAPER_PRESETS = [
@@ -12,10 +12,86 @@ const WALLPAPER_PRESETS = [
 
 export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, listeners = [], currentHost = "", isInRoom = false, onOpenSettings, onExitRoom, onGiveLeadership, onKickUser, onChangeWallpaper, isMobileOpen, setIsMobileOpen, effectiveSiteColor = "#ffffff", effectiveTextColor = "#ffffff", surfaceBg = "#000000" }) {
   const [isRoomOptionsOpen, setIsRoomOptionsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [isWallpaperExpanded, setIsWallpaperExpanded] = useState(false);
+  const roomOptionsRef = useRef(null);
+
+  const handleCloseRoomOptions = useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsRoomOptionsOpen(false);
+      setIsClosing(false);
+    }, 180);
+  }, []);
+
+  useEffect(() => {
+    if (!isRoomOptionsOpen) return;
+    const handleOutside = (e) => {
+      if (roomOptionsRef.current && !roomOptionsRef.current.contains(e.target)) {
+        handleCloseRoomOptions();
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") handleCloseRoomOptions();
+    };
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isRoomOptionsOpen, handleCloseRoomOptions]);
 
   const isUserHost = Boolean(isInRoom && user?.username && (currentHost ? user.username.toLowerCase() === currentHost.toLowerCase() : listeners[0]?.name === user.username));
-  const navItems = [{ id: "discover", label: "Home" }, { id: "rooms", label: "Rooms" }, { id: "queue", label: "Queue" }, { id: "profile", label: "Profile" }, { id: "storage", label: "Local Files" }];
+  const navItems = [
+    {
+      id: "discover",
+      label: "Home",
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+    },
+    {
+      id: "rooms",
+      label: "Rooms",
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" />
+        </svg>
+      ),
+    },
+    {
+      id: "queue",
+      label: "Queue",
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+        </svg>
+      ),
+    },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+    },
+    {
+      id: "storage",
+      label: "Local Files",
+      icon: (
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -28,9 +104,27 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
-                <button key={item.id} type="button" onClick={() => { setActiveTab(item.id); setIsMobileOpen(false); }} style={isActive ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : { backgroundColor: "transparent", color: effectiveTextColor }}
-                  className={`pixel-btn flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition-colors duration-200 ${!isActive ? "hover:bg-neutral-900/60 opacity-80 hover:opacity-100" : ""}`}>
-                  <span className="flex-1">{item.label}</span>{isActive && <span>◀</span>}
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => { setActiveTab(item.id); setIsMobileOpen(false); }}
+                  style={isActive ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : { backgroundColor: "transparent", color: effectiveTextColor }}
+                  className={`group relative flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition-all duration-200 ${
+                    isActive
+                      ? "shadow-sm shadow-white/10 font-semibold"
+                      : "hover:bg-neutral-900/60 opacity-70 hover:opacity-100 hover:translate-x-1"
+                  }`}
+                >
+                  <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-105" : "group-hover:scale-110"}`}>
+                    {item.icon}
+                  </span>
+                  <span className="flex-1">{item.label}</span>
+                  {isActive && (
+                    <span
+                      style={{ backgroundColor: surfaceBg }}
+                      className="h-1.5 w-1.5 rounded-full shrink-0 shadow-sm"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -68,7 +162,15 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
               <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{user?.username || "User"}</p><p className="truncate text-[10px] opacity-50">{user?.email || ""}</p></div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button type="button" onClick={() => setIsRoomOptionsOpen((prev) => !prev)} title="Room Options & Controls" className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 text-neutral-300 hover:text-white transition-colors duration-200">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isRoomOptionsOpen) handleCloseRoomOptions();
+                  else { setIsRoomOptionsOpen(true); setIsClosing(false); }
+                }}
+                title="Room Options & Controls"
+                className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 text-neutral-300 hover:text-white transition-colors duration-200"
+              >
                 <svg viewBox="0 0 16 16" className="h-5 w-5 [shape-rendering:crispEdges]" fill="currentColor" aria-hidden="true">
                   <rect x="6" y="1" width="4" height="2" /><rect x="6" y="13" width="4" height="2" /><rect x="1" y="6" width="2" height="4" /><rect x="13" y="6" width="2" height="4" />
                   <rect x="3" y="3" width="2" height="2" /><rect x="11" y="3" width="2" height="2" /><rect x="3" y="11" width="2" height="2" /><rect x="11" y="11" width="2" height="2" />
@@ -80,49 +182,56 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
           </div>
 
           {isRoomOptionsOpen && (
-            <div style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#ffffff", color: effectiveTextColor }} className="auth-soft-enter absolute bottom-full left-0 mb-2 w-72 rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 animate-in fade-in slide-in-from-bottom-2 duration-200">
-              <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
-                <span className="text-[10px] font-medium opacity-60">ROOM CONTROLS</span>
-                {isInRoom && <span className="text-[10px] font-medium text-amber-400">{isUserHost ? "★ YOU ARE HOST" : `HOST: ${currentHost || "Unknown"}`}</span>}
+            <>
+              <div onClick={handleCloseRoomOptions} className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px]" />
+              <div
+                ref={roomOptionsRef}
+                style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#ffffff", color: effectiveTextColor }}
+                className={`absolute bottom-full left-0 mb-2 w-72 rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 ${isClosing ? "popover-exit" : "popover-enter"}`}
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
+                  <span className="text-[10px] font-medium opacity-60">ROOM CONTROLS</span>
+                  {isInRoom && <span className="text-[10px] font-medium text-amber-400">{isUserHost ? "★ YOU ARE HOST" : `HOST: ${currentHost || "Unknown"}`}</span>}
+                </div>
+                <div className="flex flex-col gap-2.5 pt-3 text-xs">
+                  <div>
+                    <p className="text-[10px] font-medium opacity-60 mb-1">TRANSFER LEADERSHIP</p>
+                    {isUserHost ? (
+                      <select onChange={(e) => { if (e.target.value) { onGiveLeadership?.(e.target.value); handleCloseRoomOptions(); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-white focus:outline-none">
+                        <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      </select>
+                    ) : <p className="text-[11px] opacity-40">Host only.</p>}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium opacity-60 mb-1">KICK LISTENER</p>
+                    {isUserHost ? (
+                      <select onChange={(e) => { if (e.target.value) { onKickUser?.(e.target.value); handleCloseRoomOptions(); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-red-400 focus:outline-none">
+                        <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>Kick {m.name}</option>)}
+                      </select>
+                    ) : <p className="text-[11px] opacity-40">Host only.</p>}
+                  </div>
+                  <div>
+                    <button type="button" onClick={() => setIsWallpaperExpanded((prev) => !prev)} className="mb-1 flex w-full items-center justify-between text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity duration-200">
+                      <span>ROOM WALLPAPER</span><span className="opacity-70">{isWallpaperExpanded ? "▲ HIDE" : "▼ CHOOSE"}</span>
+                    </button>
+                    {isWallpaperExpanded && (
+                      <div className="grid max-h-40 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
+                        {WALLPAPER_PRESETS.map((wp) => (
+                          <button key={wp.src} type="button" onClick={() => { onChangeWallpaper?.(wp.src); handleCloseRoomOptions(); }} title={wp.name} className="h-9 w-full overflow-hidden rounded-md border border-neutral-700/60 transition-colors duration-200 hover:border-white">
+                            <img src={wp.src} alt={wp.name} className="h-full w-full object-cover [image-rendering:pixelated]" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-2">
+                    <button type="button" onClick={() => { setActiveTab("profile"); handleCloseRoomOptions(); setIsMobileOpen(false); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Profile</button>
+                    <button type="button" onClick={() => { onOpenSettings?.(); handleCloseRoomOptions(); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Appearance</button>
+                    <button type="button" onClick={handleCloseRoomOptions} className="text-[11px] font-medium opacity-50 hover:opacity-100 transition-opacity duration-200">Close</button>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col gap-2.5 pt-3 text-xs">
-                <div>
-                  <p className="text-[10px] font-medium opacity-60 mb-1">TRANSFER LEADERSHIP</p>
-                  {isUserHost ? (
-                    <select onChange={(e) => { if (e.target.value) { onGiveLeadership?.(e.target.value); setIsRoomOptionsOpen(false); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-white focus:outline-none">
-                      <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
-                    </select>
-                  ) : <p className="text-[11px] opacity-40">Host only.</p>}
-                </div>
-                <div>
-                  <p className="text-[10px] font-medium opacity-60 mb-1">KICK LISTENER</p>
-                  {isUserHost ? (
-                    <select onChange={(e) => { if (e.target.value) { onKickUser?.(e.target.value); setIsRoomOptionsOpen(false); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-red-400 focus:outline-none">
-                      <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>Kick {m.name}</option>)}
-                    </select>
-                  ) : <p className="text-[11px] opacity-40">Host only.</p>}
-                </div>
-                <div>
-                  <button type="button" onClick={() => setIsWallpaperExpanded((prev) => !prev)} className="mb-1 flex w-full items-center justify-between text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity duration-200">
-                    <span>ROOM WALLPAPER</span><span className="opacity-70">{isWallpaperExpanded ? "▲ HIDE" : "▼ CHOOSE"}</span>
-                  </button>
-                  {isWallpaperExpanded && (
-                    <div className="grid max-h-40 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
-                      {WALLPAPER_PRESETS.map((wp) => (
-                        <button key={wp.src} type="button" onClick={() => { onChangeWallpaper?.(wp.src); setIsRoomOptionsOpen(false); }} title={wp.name} className="h-9 w-full overflow-hidden rounded-md border border-neutral-700/60 transition-colors duration-200 hover:border-white">
-                          <img src={wp.src} alt={wp.name} className="h-full w-full object-cover [image-rendering:pixelated]" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-2">
-                  <button type="button" onClick={() => { setActiveTab("profile"); setIsRoomOptionsOpen(false); setIsMobileOpen(false); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Profile</button>
-                  <button type="button" onClick={() => { onOpenSettings?.(); setIsRoomOptionsOpen(false); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Appearance</button>
-                  <button type="button" onClick={() => setIsRoomOptionsOpen(false)} className="text-[11px] font-medium opacity-50 hover:opacity-100 transition-opacity duration-200">Close</button>
-                </div>
-              </div>
-            </div>
+            </>
           )}
         </div>
       </aside>
