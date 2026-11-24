@@ -10,7 +10,26 @@ const WALLPAPER_PRESETS = [
   { name: "Pixel 15", src: "/pixel-15.png" }, { name: "Pixel 16", src: "/pixel-16.jpg" }, { name: "Pixel 17", src: "/pixel-17.jpg" }, { name: "Pixel 18", src: "/pixel-18.png" },
 ];
 
-export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, listeners = [], currentHost = "", isInRoom = false, onOpenSettings, onExitRoom, onGiveLeadership, onKickUser, onChangeWallpaper, isMobileOpen, setIsMobileOpen, effectiveSiteColor = "#ffffff", effectiveTextColor = "#ffffff", surfaceBg = "#000000" }) {
+export default function Sidebar({
+  user,
+  roomCode = "",
+  roomName = "",
+  activeTab,
+  setActiveTab,
+  listeners = [],
+  currentHost = "",
+  isInRoom = false,
+  onOpenSettings,
+  onExitRoom,
+  onGiveLeadership,
+  onKickUser,
+  onChangeWallpaper,
+  isMobileOpen,
+  setIsMobileOpen,
+  effectiveSiteColor = "#ffffff",
+  effectiveTextColor = "#ffffff",
+  surfaceBg = "#000000",
+}) {
   const [isRoomOptionsOpen, setIsRoomOptionsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isWallpaperExpanded, setIsWallpaperExpanded] = useState(false);
@@ -44,7 +63,12 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
     };
   }, [isRoomOptionsOpen, handleCloseRoomOptions]);
 
-  const isUserHost = Boolean(isInRoom && user?.username && (currentHost ? user.username.toLowerCase() === currentHost.toLowerCase() : listeners[0]?.name === user.username));
+  const isUserHost = Boolean(
+    isInRoom &&
+      user?.username &&
+      (currentHost ? user.username.toLowerCase() === currentHost.toLowerCase() : listeners[0]?.name === user.username)
+  );
+
   const navItems = [
     {
       id: "discover",
@@ -73,6 +97,19 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
         </svg>
       ),
     },
+    ...(isInRoom
+      ? [
+          {
+            id: "chat",
+            label: "Room Chat",
+            icon: (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     {
       id: "profile",
       label: "Profile",
@@ -96,10 +133,23 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
   return (
     <>
       {isMobileOpen && <div onClick={() => setIsMobileOpen(false)} className="fixed inset-0 z-40 bg-black/80 md:hidden" />}
-      <aside style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between p-5 transition-transform duration-200 md:static md:translate-x-0 ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex flex-col gap-5 overflow-y-auto">
-          <div className="flex justify-end md:hidden"><button type="button" onClick={() => setIsMobileOpen(false)} className="pixel-btn rounded-md bg-neutral-900 px-2.5 py-1 text-xs font-medium">✕</button></div>
-          <nav className="flex flex-col gap-1.5">
+      <aside
+        style={{ backgroundColor: surfaceBg, color: effectiveTextColor }}
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between p-5 transition-transform duration-200 md:static md:translate-x-0 overflow-x-hidden ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex flex-col gap-5 overflow-y-auto overflow-x-hidden">
+          <div className="flex justify-end md:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileOpen(false)}
+              className="pixel-btn rounded-md bg-neutral-900 px-2.5 py-1 text-xs font-medium"
+            >
+              ✕
+            </button>
+          </div>
+          <nav className="flex flex-col gap-1.5 overflow-x-hidden">
             <p className="px-1 text-[10px] font-medium opacity-40">NAVIGATION</p>
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
@@ -107,8 +157,15 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => { setActiveTab(item.id); setIsMobileOpen(false); }}
-                  style={isActive ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : { backgroundColor: "transparent", color: effectiveTextColor }}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setIsMobileOpen(false);
+                  }}
+                  style={
+                    isActive
+                      ? { backgroundColor: effectiveSiteColor, color: surfaceBg }
+                      : { backgroundColor: "transparent", color: effectiveTextColor }
+                  }
                   className={`group relative flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition-all duration-200 ${
                     isActive
                       ? "shadow-sm shadow-white/10 font-semibold"
@@ -118,7 +175,7 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
                   <span className={`shrink-0 transition-transform duration-200 ${isActive ? "scale-105" : "group-hover:scale-110"}`}>
                     {item.icon}
                   </span>
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1 truncate">{item.label}</span>
                   {isActive && (
                     <span
                       style={{ backgroundColor: surfaceBg }}
@@ -131,26 +188,39 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
           </nav>
 
           {isInRoom && (
-            <div className="flex flex-col gap-2 rounded-2xl bg-neutral-900/40 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="flex items-center justify-between text-[11px] font-medium">
-                <span className="opacity-70 font-mono text-[10px]">{formatRoomCode(roomCode)}</span>
-                <span className="flex items-center gap-1 text-emerald-400 text-[10px]"><span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />{listeners.length} ONLINE</span>
+            <div className="flex flex-col gap-2 rounded-2xl bg-neutral-900/40 p-4 animate-in fade-in slide-in-from-top-2 duration-200 overflow-x-hidden">
+              <div className="flex items-center justify-between text-[11px] font-medium gap-1">
+                <span className="opacity-75 font-mono text-[10px] truncate" title={roomName ? `${roomName} • ${formatRoomCode(roomCode)}` : formatRoomCode(roomCode)}>
+                  {roomName ? `${roomName} • ` : ""}{formatRoomCode(roomCode)}
+                </span>
+                <span className="flex items-center gap-1 text-emerald-400 text-[10px] shrink-0 font-mono">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+                  {listeners.length}/20
+                </span>
               </div>
-              <ul className="flex flex-col gap-1.5 text-xs">
+              <ul className="flex flex-col gap-1.5 text-xs overflow-x-hidden">
                 {listeners.slice(0, 5).map((person) => {
                   const isHost = person.is_host || (currentHost && person.name.toLowerCase() === currentHost.toLowerCase());
                   return (
                     <li key={person.id} className="flex items-center justify-between opacity-80">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className={`h-1.5 w-1.5 rounded-full ${isHost ? "bg-amber-400" : "bg-neutral-500"}`} />
+                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isHost ? "bg-amber-400" : "bg-neutral-500"}`} />
                         <span className="truncate">{person.name}</span>
                       </div>
-                      {isHost && <span className="rounded bg-amber-400/20 px-1 py-0.5 text-[8px] font-medium text-amber-300">HOST</span>}
+                      {isHost && (
+                        <span className="rounded bg-amber-400/20 px-1 py-0.5 text-[8px] font-medium text-amber-300 shrink-0">
+                          HOST
+                        </span>
+                      )}
                     </li>
                   );
                 })}
               </ul>
-              {listeners.length > 5 && <p className="mt-1 text-left text-[10px] font-medium text-neutral-400">+{listeners.length - 5} more</p>}
+              {listeners.length > 5 && (
+                <p className="mt-1 text-left text-[10px] font-medium text-neutral-400">
+                  +{listeners.length - 5} more
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -158,15 +228,25 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
         <div className="relative mt-4 rounded-2xl bg-neutral-900/40 p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-950 font-medium text-xs"><span style={{ color: effectiveSiteColor }}>{user?.username ? user.username.charAt(0).toUpperCase() : "P"}</span></div>
-              <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{user?.username || "User"}</p><p className="truncate text-[10px] opacity-50">{user?.email || ""}</p></div>
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-950 font-medium text-xs">
+                <span style={{ color: effectiveSiteColor }}>
+                  {user?.username ? user.username.charAt(0).toUpperCase() : "P"}
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">{user?.username || "User"}</p>
+                <p className="truncate text-[10px] opacity-50">{user?.email || ""}</p>
+              </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   if (isRoomOptionsOpen) handleCloseRoomOptions();
-                  else { setIsRoomOptionsOpen(true); setIsClosing(false); }
+                  else {
+                    setIsRoomOptionsOpen(true);
+                    setIsClosing(false);
+                  }
                 }}
                 title="Room Options & Controls"
                 className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 text-neutral-300 hover:text-white transition-colors duration-200"
@@ -177,7 +257,14 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
                   <rect x="4" y="4" width="8" height="8" /><rect x="6" y="6" width="4" height="4" fill="#000000" />
                 </svg>
               </button>
-              <button type="button" onClick={onExitRoom} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-2.5 py-1 text-xs font-medium shrink-0 transition-colors duration-200 hover:opacity-80">EXIT</button>
+              <button
+                type="button"
+                onClick={onExitRoom}
+                style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                className="pixel-btn rounded-lg px-2.5 py-1 text-xs font-medium shrink-0 transition-colors duration-200 hover:opacity-80"
+              >
+                EXIT
+              </button>
             </div>
           </div>
 
@@ -187,37 +274,85 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
               <div
                 ref={roomOptionsRef}
                 style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#ffffff", color: effectiveTextColor }}
-                className={`absolute bottom-full left-0 mb-2 w-72 rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 ${isClosing ? "popover-exit" : "popover-enter"}`}
+                className={`absolute bottom-full left-0 mb-2 w-72 rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 ${
+                  isClosing ? "popover-exit" : "popover-enter"
+                }`}
               >
                 <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
                   <span className="text-[10px] font-medium opacity-60">ROOM CONTROLS</span>
-                  {isInRoom && <span className="text-[10px] font-medium text-amber-400">{isUserHost ? "★ YOU ARE HOST" : `HOST: ${currentHost || "Unknown"}`}</span>}
+                  {isInRoom && (
+                    <span className="text-[10px] font-medium text-amber-400">
+                      {isUserHost ? "★ YOU ARE HOST" : `HOST: ${currentHost || "Unknown"}`}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-col gap-2.5 pt-3 text-xs">
                   <div>
                     <p className="text-[10px] font-medium opacity-60 mb-1">TRANSFER LEADERSHIP</p>
                     {isUserHost ? (
-                      <select onChange={(e) => { if (e.target.value) { onGiveLeadership?.(e.target.value); handleCloseRoomOptions(); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-white focus:outline-none">
-                        <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            onGiveLeadership?.(e.target.value);
+                            handleCloseRoomOptions();
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                      >
+                        <option value="" disabled>Select Member...</option>
+                        {listeners.filter((m) => m.name !== user?.username).map((m) => (
+                          <option key={m.id} value={m.name}>{m.name}</option>
+                        ))}
                       </select>
-                    ) : <p className="text-[11px] opacity-40">Host only.</p>}
+                    ) : (
+                      <p className="text-[11px] opacity-40">Host only.</p>
+                    )}
                   </div>
                   <div>
                     <p className="text-[10px] font-medium opacity-60 mb-1">KICK LISTENER</p>
                     {isUserHost ? (
-                      <select onChange={(e) => { if (e.target.value) { onKickUser?.(e.target.value); handleCloseRoomOptions(); } }} defaultValue="" className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-red-400 focus:outline-none">
-                        <option value="" disabled>Select Member...</option>{listeners.filter((m) => m.name !== user?.username).map((m) => <option key={m.id} value={m.name}>Kick {m.name}</option>)}
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            onKickUser?.(e.target.value);
+                            handleCloseRoomOptions();
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-red-400 focus:outline-none"
+                      >
+                        <option value="" disabled>Select Member...</option>
+                        {listeners.filter((m) => m.name !== user?.username).map((m) => (
+                          <option key={m.id} value={m.name}>Kick {m.name}</option>
+                        ))}
                       </select>
-                    ) : <p className="text-[11px] opacity-40">Host only.</p>}
+                    ) : (
+                      <p className="text-[11px] opacity-40">Host only.</p>
+                    )}
                   </div>
                   <div>
-                    <button type="button" onClick={() => setIsWallpaperExpanded((prev) => !prev)} className="mb-1 flex w-full items-center justify-between text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity duration-200">
-                      <span>ROOM WALLPAPER</span><span className="opacity-70">{isWallpaperExpanded ? "▲ HIDE" : "▼ CHOOSE"}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsWallpaperExpanded((prev) => !prev)}
+                      className="mb-1 flex w-full items-center justify-between text-[10px] font-medium opacity-60 hover:opacity-100 transition-opacity duration-200"
+                    >
+                      <span>ROOM WALLPAPER</span>
+                      <span className="opacity-70">{isWallpaperExpanded ? "▲ HIDE" : "▼ CHOOSE"}</span>
                     </button>
                     {isWallpaperExpanded && (
                       <div className="grid max-h-40 grid-cols-4 gap-1.5 overflow-y-auto pr-1">
                         {WALLPAPER_PRESETS.map((wp) => (
-                          <button key={wp.src} type="button" onClick={() => { onChangeWallpaper?.(wp.src); handleCloseRoomOptions(); }} title={wp.name} className="h-9 w-full overflow-hidden rounded-md border border-neutral-700/60 transition-colors duration-200 hover:border-white">
+                          <button
+                            key={wp.src}
+                            type="button"
+                            onClick={() => {
+                              onChangeWallpaper?.(wp.src);
+                              handleCloseRoomOptions();
+                            }}
+                            title={wp.name}
+                            className="h-9 w-full overflow-hidden rounded-md border border-neutral-700/60 transition-colors duration-200 hover:border-white"
+                          >
                             <img src={wp.src} alt={wp.name} className="h-full w-full object-cover [image-rendering:pixelated]" />
                           </button>
                         ))}
@@ -225,9 +360,34 @@ export default function Sidebar({ user, roomCode = "", activeTab, setActiveTab, 
                     )}
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800 pt-2">
-                    <button type="button" onClick={() => { setActiveTab("profile"); handleCloseRoomOptions(); setIsMobileOpen(false); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Profile</button>
-                    <button type="button" onClick={() => { onOpenSettings?.(); handleCloseRoomOptions(); }} className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200">Appearance</button>
-                    <button type="button" onClick={handleCloseRoomOptions} className="text-[11px] font-medium opacity-50 hover:opacity-100 transition-opacity duration-200">Close</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("profile");
+                        handleCloseRoomOptions();
+                        setIsMobileOpen(false);
+                      }}
+                      className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200"
+                    >
+                      Profile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenSettings?.();
+                        handleCloseRoomOptions();
+                      }}
+                      className="text-[11px] font-medium opacity-70 hover:opacity-100 transition-opacity duration-200"
+                    >
+                      Appearance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCloseRoomOptions}
+                      className="text-[11px] font-medium opacity-50 hover:opacity-100 transition-opacity duration-200"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
               </div>

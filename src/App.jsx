@@ -110,6 +110,9 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState("discover");
   const [roomCode, setRoomCode] = useState(() => generateRoomCode());
+  const [roomName, setRoomName] = useState("Stereo Lounge");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [isLocallyPaused, setIsLocallyPaused] = useState(false);
   const [currentHost, setCurrentHost] = useState("");
   const [isInRoom, setIsInRoom] = useState(false);
   const [wallpaper, setWallpaper] = useState(() => selectedMedia.src);
@@ -276,11 +279,112 @@ export default function App() {
   const handleWallpaperUpdate = useCallback((newWallpaper) => { if (newWallpaper) setWallpaper(newWallpaper); }, []);
   const activeUsername = localStorage.getItem("syncroom_active_username") || user?.username || "PlayerOne";
 
-  const { sendAction } = useRoomSocket({ roomCode: isAuthenticated && isInRoom ? roomCode : "", username: activeUsername, onSyncPlay: handleRemotePlay, onSyncPause: handleRemotePause, onSyncSeek: handleRemoteSeek, onSyncChangeTrack: handleRemoteChangeTrack, onSyncQueue: handleRemoteQueue, onListenersUpdate: handleRemoteListeners, onHostUpdate: handleHostUpdate, onKicked: handleKicked, onWallpaperUpdate: handleWallpaperUpdate });
+  const isUserHost = Boolean(
+    isInRoom &&
+      user?.username &&
+      (currentHost ? user.username.toLowerCase() === currentHost.toLowerCase() : listeners[0]?.name === user.username)
+  );
 
-  const handleExitRoom = () => { if (audioRef.current) sendAction("PAUSE", { current_time: audioRef.current.currentTime }); setRoomCode(generateRoomCode()); setIsInRoom(false); };
-  const handleJoinRoom = (code) => { const normalized = normalizeRoomCode(code); if (!normalized) return; setRoomCode(normalized); setIsInRoom(true); setActiveTab("discover"); };
-  const handleCreateRoom = (code) => { const targetCode = normalizeRoomCode(code) || generateRoomCode(); setRoomCode(targetCode); setCurrentHost(activeUsername); setIsInRoom(true); setActiveTab("discover"); };
+  const handleChatMessage = useCallback((message) => {
+    if (message) {
+      setChatMessages((prev) => [...prev, message]);
+    }
+  }, []);
+
+  const handleChatHistory = useCallback((history) => {
+    if (Array.isArray(history)) {
+      setChatMessages(history);
+    }
+  }, []);
+
+  const handleRoomNameUpdate = useCallback((name) => {
+    if (name) setRoomName(name);
+  }, []);
+
+  const handleRoomFull = useCallback((detail) => {
+    alert(detail || "Room has reached its maximum capacity of 20 users.");
+    setIsInRoom(false);
+    setRoomCode("LOBBY");
+    setActiveTab("rooms");
+  }, []);
+
+  const handleSyncState = useCallback((syncData) => {
+    const state = syncData?.state;
+    if (state) {
+      if (state.track) {
+        setCurrentTrack(state.track);
+        if (audioRef.current && audioRef.current.src !== state.track.src) {
+          audioRef.current.src = state.track.src;
+        }
+      }
+      if (state.current_time !== undefined && audioRef.current) {
+        audioRef.current.currentTime = state.current_time;
+        setCurrentTime(state.current_time);
+      }
+      if (state.is_playing) {
+        audioRef.current?.play().then(() => {
+          setIsPlaying(true);
+          setIsAudioLocked(false);
+          setIsLocallyPaused(false);
+        }).catch(() => setIsAudioLocked(true));
+      } else {
+        audioRef.current?.pause();
+        setIsPlaying(false);
+        setIsLocallyPaused(false);
+      }
+    }
+  }, []);
+
+  const { sendAction, sendChatMessage, requestSync } = useRoomSocket({
+    roomCode: isAuthenticated && isInRoom ? roomCode : "",
+    username: activeUsername,
+    roomName: roomName,
+    onSyncPlay: handleRemotePlay,
+    onSyncPause: handleRemotePause,
+    onSyncSeek: handleRemoteSeek,
+    onSyncChangeTrack: handleRemoteChangeTrack,
+    onSyncQueue: handleRemoteQueue,
+    onListenersUpdate: handleRemoteListeners,
+    onHostUpdate: handleHostUpdate,
+    onKicked: handleKicked,
+    onWallpaperUpdate: handleWallpaperUpdate,
+    onChatMessage: handleChatMessage,
+    onChatHistory: handleChatHistory,
+    onRoomNameUpdate: handleRoomNameUpdate,
+    onRoomFull: handleRoomFull,
+    onSyncState: handleSyncState,
+  });
+
+  const handleExitRoom = () => {
+    if (isUserHost && audioRef.current) {
+      sendAction("PAUSE", { current_time: audioRef.current.currentTime });
+    }
+    setRoomCode(generateRoomCode());
+    setRoomName("Stereo Lounge");
+    setChatMessages([]);
+    setIsInRoom(false);
+    if (activeTab === "chat") setActiveTab("rooms");
+  };
+
+  const handleJoinRoom = (code) => {
+    const normalized = normalizeRoomCode(code);
+    if (!normalized) return;
+    setRoomCode(normalized);
+    setChatMessages([]);
+    setIsInRoom(true);
+    setActiveTab("discover");
+  };
+
+  const handleCreateRoom = (code, name) => {
+    const targetCode = normalizeRoomCode(code) || generateRoomCode();
+    setRoomCode(targetCode);
+    if (name) setRoomName(name);
+    setCurrentHost(activeUsername);
+    setChatMessages([]);
+    setIsInRoom(true);
+    setActiveTab("discover");
+  };
+
   const handleGiveLeadership = (targetName) => sendAction("GIVE_LEADERSHIP", { target_name: targetName });
   const handleKickUser = (targetName) => sendAction("KICK_USER", { target_name: targetName });
   const handleChangeWallpaper = (newWp) => { setWallpaper(newWp); sendAction("CHANGE_WALLPAPER", { wallpaper: newWp }); };
@@ -295,9 +399,9 @@ export default function App() {
 
   const playTrackNow = (track) => {
     setCurrentTrack(track); addToRecents(track); incrementPlayCount(track); recordGlobalPlay(track);
-    if (!isRemoteAction.current) sendAction("CHANGE_TRACK", { track, current_time: 0 });
+    if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("CHANGE_TRACK", { track, current_time: 0 });
     const audio = audioRef.current;
-    if (audio) { audio.src = track.src; audio.currentTime = 0; audio.play().then(() => setIsPlaying(true)).catch(() => setIsAudioLocked(true)); }
+    if (audio) { audio.src = track.src; audio.currentTime = 0; audio.play().then(() => { setIsPlaying(true); setIsLocallyPaused(false); }).catch(() => setIsAudioLocked(true)); }
   };
 
   const handleNext = () => {
@@ -320,7 +424,7 @@ export default function App() {
               audioRef.current.currentTime = 0;
               setCurrentTime(0);
               setIsPlaying(false);
-              if (!isRemoteAction.current) sendAction("PAUSE", { current_time: 0 });
+              if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("PAUSE", { current_time: 0 });
             }
             return;
           }
@@ -333,7 +437,7 @@ export default function App() {
   };
 
   const handlePrev = () => {
-    if (audioRef.current && audioRef.current.currentTime > 3) { audioRef.current.currentTime = 0; setCurrentTime(0); if (!isRemoteAction.current) sendAction("SEEK", { current_time: 0 }); return; }
+    if (audioRef.current && audioRef.current.currentTime > 3) { audioRef.current.currentTime = 0; setCurrentTime(0); if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("SEEK", { current_time: 0 }); return; }
     if (currentPlaybackList && currentPlaybackList.length > 0) {
       const currentIdx = currentPlaybackList.findIndex((t) => t.id === currentTrack?.id);
       const prevIdx = currentIdx > 0 ? currentIdx - 1 : currentPlaybackList.length - 1;
@@ -341,8 +445,39 @@ export default function App() {
     }
   };
 
-  const handleAudioEnded = () => { if (isLooping) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => setIsAudioLocked(true)); if (!isRemoteAction.current) sendAction("PLAY", { current_time: 0 }); } } else { handleNext(); } };
-  const handleTogglePlay = () => { const audio = audioRef.current; if (!audio) return; if (audio.paused) { if (!audio.src && currentTrack?.src) audio.src = currentTrack.src; audio.play().then(() => { setIsPlaying(true); setIsAudioLocked(false); if (!isRemoteAction.current) sendAction("PLAY", { current_time: audio.currentTime }); }).catch(() => setIsAudioLocked(true)); } else { audio.pause(); setIsPlaying(false); if (!isRemoteAction.current) sendAction("PAUSE", { current_time: audio.currentTime }); } };
+  const handleAudioEnded = () => { if (isLooping) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => setIsAudioLocked(true)); if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("PLAY", { current_time: 0 }); } } else { handleNext(); } };
+  
+  const handleTogglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audio.paused) {
+      if (isInRoom && !isUserHost) {
+        // Automatically synchronize the listener with the host!
+        requestSync();
+        setIsLocallyPaused(false);
+        return;
+      }
+      if (!audio.src && currentTrack?.src) audio.src = currentTrack.src;
+      audio.play().then(() => {
+        setIsPlaying(true);
+        setIsAudioLocked(false);
+        setIsLocallyPaused(false);
+        if (!isRemoteAction.current) sendAction("PLAY", { current_time: audio.currentTime });
+      }).catch(() => setIsAudioLocked(true));
+    } else {
+      if (isInRoom && !isUserHost) {
+        // Listener pauses only for themselves, not the whole room
+        audio.pause();
+        setIsPlaying(false);
+        setIsLocallyPaused(true);
+        return;
+      }
+      audio.pause();
+      setIsPlaying(false);
+      if (!isRemoteAction.current) sendAction("PAUSE", { current_time: audio.currentTime });
+    }
+  };
   
   const handleSelectTrack = (track, listContext = null) => {
     if (listContext && Array.isArray(listContext)) setCurrentPlaybackList(listContext);
@@ -703,7 +838,7 @@ export default function App() {
 
           <div className="relative flex flex-1 overflow-hidden">
             <Sidebar
-              user={user} roomCode={roomCode} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setActiveView("workspace"); }}
+              user={user} roomCode={roomCode} roomName={roomName} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setActiveView("workspace"); }}
               listeners={listeners} currentHost={currentHost} isInRoom={isInRoom} onOpenSettings={() => setActiveView("settings")}
               onExitRoom={handleExitRoom} onGiveLeadership={handleGiveLeadership} onKickUser={handleKickUser} onChangeWallpaper={handleChangeWallpaper}
               isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
@@ -755,11 +890,13 @@ export default function App() {
                 searchQuery={searchQuery} onSearchChange={setSearchQuery} onSelectTrack={handleSelectTrack} onAddToQueue={handleAddToQueue}
                 onRemoveFromQueue={handleRemoveFromQueue} onClearQueue={handleClearQueue} onLoadAllToQueue={handleLoadAllToQueue}
                 localTracks={localTracks} onImportLocalFiles={handleImportLocalFiles} favorites={favorites} onToggleFavorite={handleToggleFavorite}
-                currentRoomCode={roomCode} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} onExitRoom={handleExitRoom}
-                listeners={listeners} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
+                currentRoomCode={roomCode} roomName={roomName} isInRoom={isInRoom} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} onExitRoom={handleExitRoom}
+                listeners={listeners} currentHost={currentHost} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
                 playlists={playlists} onAddToPlaylist={handleAddToPlaylist} onDeletePlaylist={handleDeletePlaylist} 
                 onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist} recentTracks={recentTracks}
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
+                chatMessages={chatMessages} onSendChatMessage={sendChatMessage} onResyncWithHost={requestSync} isUserHost={isUserHost}
+                isLocallyPaused={isLocallyPaused}
               />
             )}
           </div>

@@ -28,8 +28,8 @@ def health_check():
     return {"status": "healthy", "service": settings.PROJECT_NAME, "version": settings.VERSION}
 
 @app.websocket("/ws/rooms/{room_code}")
-async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username: str = "Anonymous"):
-    await manager.connect(websocket, room_code=room_code, username=username)
+async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = ""):
+    await manager.connect(websocket, room_code=room_code, username=username, room_name=room_name)
     try:
         while True:
             data = await websocket.receive_json()
@@ -39,7 +39,7 @@ async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username
                 await manager.update_playback(room_code=room_code, action=action, data=payload, sender=websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_code)
-        await manager.broadcast(room_code, {"type": "LISTENERS_UPDATE", "host": manager.room_hosts.get(room_code), "listeners": manager.room_members.get(room_code, [])})
+        await manager.broadcast(room_code, {"type": "LISTENERS_UPDATE", "room_name": manager.room_names.get(room_code, "Stereo Lounge"), "host": manager.room_hosts.get(room_code), "listeners": manager.room_members.get(room_code, [])})
     except Exception:
         manager.disconnect(websocket, room_code)
-        await manager.broadcast(room_code, {"type": "LISTENERS_UPDATE", "host": manager.room_hosts.get(room_code), "listeners": manager.room_members.get(room_code, [])})
+        await manager.broadcast(room_code, {"type": "LISTENERS_UPDATE", "room_name": manager.room_names.get(room_code, "Stereo Lounge"), "host": manager.room_hosts.get(room_code), "listeners": manager.room_members.get(room_code, [])})
