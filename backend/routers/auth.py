@@ -11,6 +11,7 @@ import httpx
 from backend.database import get_db
 from backend.models import User
 from backend.config import settings
+from backend.email_service import send_reset_code_email
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 _reset_codes: dict = {}
@@ -100,14 +101,17 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token, token_type="bearer", user=UserResponse.model_validate(user))
 
 @router.post("/forgot-password")
-def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
     email = req.email.strip().lower()
     user = db.query(User).filter(User.email == email).first()
     if not user: raise HTTPException(status_code=404, detail="No account found with this email.")
     code = f"{secrets.randbelow(10**6):06d}"
     _reset_codes[email] = {"code": code, "expires_at": datetime.utcnow() + timedelta(minutes=15)}
-    payload = {"status": "sent"}
+    email_sent = await send_reset_code_email(email, code)
+    payload = {"status": "sent", "email_sent": email_sent}
     if settings.ALLOW_RESET_CODE_IN_RESPONSE: payload["dev_code"] = code
+    if not email_sent and not settings.ALLOW_RESET_CODE_IN_RESPONSE:
+        raise HTTPException(status_code=503, detail="Email service is not configured on the server.")
     return payload
 
 @router.post("/reset-password")
