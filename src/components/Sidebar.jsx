@@ -251,12 +251,13 @@ export default function Sidebar({
                   }
                 }}
                 title="Room Options & Controls"
-                className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 text-neutral-300 hover:text-white transition-colors duration-200"
+                style={{ color: effectiveTextColor }}
+                className="pixel-btn flex h-7 w-7 items-center justify-center rounded-lg bg-transparent border-0 opacity-75 hover:opacity-100 transition-opacity duration-200"
               >
                 <svg viewBox="0 0 16 16" className="h-5 w-5 [shape-rendering:crispEdges]" fill="currentColor" aria-hidden="true">
                   <rect x="6" y="1" width="4" height="2" /><rect x="6" y="13" width="4" height="2" /><rect x="1" y="6" width="2" height="4" /><rect x="13" y="6" width="2" height="4" />
                   <rect x="3" y="3" width="2" height="2" /><rect x="11" y="3" width="2" height="2" /><rect x="3" y="11" width="2" height="2" /><rect x="11" y="11" width="2" height="2" />
-                  <rect x="4" y="4" width="8" height="8" /><rect x="6" y="6" width="4" height="4" fill="#000000" />
+                  <rect x="4" y="4" width="8" height="8" /><rect x="6" y="6" width="4" height="4" fill={surfaceBg} />
                 </svg>
               </button>
               <button
@@ -276,7 +277,7 @@ export default function Sidebar({
               <div
                 ref={roomOptionsRef}
                 style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#ffffff", color: effectiveTextColor }}
-                className={`absolute bottom-full left-0 mb-2 w-72 rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 ${
+                className={`absolute bottom-full left-0 mb-2 w-full max-h-[70vh] overflow-y-auto overflow-x-hidden rounded-2xl p-4 shadow-2xl z-50 border border-neutral-800 ${
                   isClosing ? "popover-exit" : "popover-enter"
                 }`}
               >
@@ -333,24 +334,32 @@ export default function Sidebar({
                       <p className="text-[11px] opacity-40">Host only.</p>
                     )}
                   </div>
-                  {isUserHost && kickedUsers.length > 0 && (
+                  {isInRoom && (
                     <div>
-                      <p className="text-[10px] font-medium opacity-60 mb-1">ALLOW KICKED USER</p>
-                      <select
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            onAllowUser?.(e.target.value);
-                            handleCloseRoomOptions();
-                          }
-                        }}
-                        defaultValue=""
-                        className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-emerald-400 focus:outline-none"
-                      >
-                        <option value="" disabled>Allow back...</option>
-                        {kickedUsers.map((k) => (
-                          <option key={k.username} value={k.username}>Allow {k.username}</option>
-                        ))}
-                      </select>
+                      <p className="text-[10px] font-medium opacity-60 mb-1">UNBLOCK KICKED USER</p>
+                      {isUserHost ? (
+                        kickedUsers.length > 0 ? (
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                onAllowUser?.(e.target.value);
+                                handleCloseRoomOptions();
+                              }
+                            }}
+                            defaultValue=""
+                            className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-emerald-400 focus:outline-none"
+                          >
+                            <option value="" disabled>Unblock member...</option>
+                            {kickedUsers.map((k) => (
+                              <option key={k.username} value={k.username}>Unblock {k.username}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-[11px] opacity-40">No blocked users.</p>
+                        )
+                      ) : (
+                        <p className="text-[11px] opacity-40">Host only.</p>
+                      )}
                     </div>
                   )}
                   <div>

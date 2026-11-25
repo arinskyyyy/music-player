@@ -282,21 +282,33 @@ export default function App() {
   useEffect(() => { const token = user?.token; if (!token) return; let cancelled = false; fetch(`${API_BASE}/api/music/favorites`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : Promise.reject()).then((data) => { if (cancelled) return; setFavorites(data.favorites || []); }).catch(() => {}); return () => { cancelled = true; }; }, [user?.token, user?.id]);
   useEffect(() => { if (!user?.token) return; fetch(`${API_BASE}/api/music/playlists`, { headers: { Authorization: `Bearer ${user.token}` } }).then(res => res.json()).then(data => setPlaylists(data.playlists || [])).catch(() => {}); }, [user?.token]);
 
+  useEffect(() => {
+    if (!user?.token || user?.uid) return;
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${user.token}` } })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((me) => {
+        if (me?.uid) {
+          setUser((prev) => {
+            if (!prev) return prev;
+            const updated = { ...prev, uid: me.uid };
+            try { localStorage.setItem("syncroom_user", JSON.stringify(updated)); } catch { /* ignore */ }
+            return updated;
+          });
+        }
+      })
+      .catch(() => {});
+  }, [user?.token, user?.uid]);
+
   const handlePermitAudio = () => {
     try { localStorage.setItem("syncroom_audio_permitted", "true"); } catch { /* ignore */ }
     setShowAudioPrompt(false);
-    const audio = audioRef.current;
-    if (audio && audio.paused) {
-      const prevSrc = audio.src;
-      if (!prevSrc && currentTrack?.src) audio.src = currentTrack.src;
-      audio.muted = true;
-      audio.play().then(() => {
-        audio.pause();
-        audio.muted = isMuted;
-      }).catch(() => {
-        audio.muted = isMuted;
-      });
-    }
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      }
+    } catch { /* ignore */ }
   };
 
   const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setShowAudioPrompt(false); }).catch(() => {}); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);

@@ -26,7 +26,6 @@ export default function TrackList({
   favorites = [],
   onToggleFavorite,
   currentRoomCode = "LOBBY",
-  roomId = "",
   roomName = "",
   isInRoom = false,
   onJoinRoom,
@@ -59,8 +58,6 @@ export default function TrackList({
   const fileInputRef = useRef(null);
   const chatBottomRef = useRef(null);
   const [newRoomName, setNewRoomName] = useState("");
-  const [customRoomCode, setCustomRoomCode] = useState("");
-  const [customRoomId, setCustomRoomId] = useState("");
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [roomNotice, setRoomNotice] = useState("");
   const [chatInputText, setChatInputText] = useState("");
@@ -104,14 +101,10 @@ export default function TrackList({
 
   const handleCreateSubmit = (e) => {
     e.preventDefault();
-    const code = normalizeRoomCode(customRoomCode);
     const name = newRoomName.trim();
-    const rid = customRoomId.trim();
-    onCreateRoom?.(code, name, rid);
+    onCreateRoom?.("", name, "");
     setRoomNotice(`Created room!`);
     setNewRoomName("");
-    setCustomRoomCode("");
-    setCustomRoomId("");
     setTimeout(() => setRoomNotice(""), 3000);
   };
 
@@ -277,7 +270,7 @@ export default function TrackList({
 
   return (
     <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-0">
-      <div key={activeTab} className="tab-content-enter min-h-full">
+      <div key={activeTab} className="tab-content-enter h-full">
         {activeTab === "discover" && (
           <div className="flex flex-col gap-4">
             <div
@@ -362,11 +355,11 @@ export default function TrackList({
                         {(showAllFavs ? favorites : favorites.slice(0, 5)).map((t) => (
                           <div key={t.id} className="flex items-center justify-between text-xs group relative">
                             <div
-                              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
+                              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 opacity-65 hover:opacity-95 transition-opacity duration-200"
                               onClick={() => onSelectTrack(t, favorites)}
                             >
                               <span className="truncate pr-2">{t.title}</span>
-                              <span className="text-neutral-500 text-[10px] shrink-0">{t.artist}</span>
+                              <span className="opacity-70 text-[10px] shrink-0">{t.artist}</span>
                             </div>
                             <div className="relative shrink-0">
                               <button
@@ -375,7 +368,7 @@ export default function TrackList({
                                   e.stopPropagation();
                                   setOpenFavMenu((prev) => (prev === t.id ? null : t.id));
                                 }}
-                                className="pixel-btn px-2 py-1 text-neutral-500 hover:text-neutral-200 transition-colors duration-200"
+                                className="pixel-btn px-2 py-1 opacity-50 hover:opacity-100 transition-opacity duration-200"
                                 title="Options"
                               >
                                 ⋯
@@ -410,7 +403,7 @@ export default function TrackList({
                         {favorites.length > 5 && !showAllFavs && (
                           <button
                             onClick={() => setShowAllFavs(true)}
-                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left opacity-50 hover:opacity-90 mt-1 transition-opacity duration-200"
                           >
                             Show all {favorites.length} favorites
                           </button>
@@ -418,14 +411,14 @@ export default function TrackList({
                         {showAllFavs && favorites.length > 5 && (
                           <button
                             onClick={() => setShowAllFavs(false)}
-                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left opacity-50 hover:opacity-90 mt-1 transition-opacity duration-200"
                           >
                             Show less
                           </button>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-neutral-500">No favorites yet.</p>
+                      <p className="text-xs opacity-50">No favorites yet.</p>
                     )}
                   </div>
                 </div>
@@ -461,7 +454,7 @@ export default function TrackList({
                           <div key={p.id} className="flex flex-col">
                             <div className="flex items-center justify-between text-xs group relative">
                               <div
-                                className="flex items-center gap-2 flex-1 cursor-pointer text-neutral-400 hover:text-neutral-200 transition-colors duration-200 min-w-0"
+                                className="flex items-center gap-2 flex-1 cursor-pointer opacity-65 hover:opacity-95 transition-opacity duration-200 min-w-0"
                                 onClick={() => setExpandedPlaylistId(expandedPlaylistId === p.id ? null : p.id)}
                               >
                                 {editingPlaylistId === p.id ? (
@@ -478,7 +471,7 @@ export default function TrackList({
                                 ) : (
                                   <span className="truncate pr-2 flex-1">{p.name}</span>
                                 )}
-                                <span className="text-neutral-500 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
+                                <span className="opacity-70 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
                               </div>
                               <div className="relative shrink-0">
                                 <button
@@ -486,7 +479,7 @@ export default function TrackList({
                                     e.stopPropagation();
                                     setOpenPlaylistMenu((prev) => (prev === p.id ? null : p.id));
                                   }}
-                                  className="pixel-btn px-2 py-1 text-neutral-500 hover:text-neutral-200 transition-colors duration-200"
+                                  className="pixel-btn px-2 py-1 opacity-50 hover:opacity-100 transition-opacity duration-200"
                                 >
                                   ⋯
                                 </button>
@@ -524,14 +517,14 @@ export default function TrackList({
                                   p.tracks.map((track, i) => (
                                     <div
                                       key={`${track.id}-${i}`}
-                                      className="flex items-center justify-between text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
+                                      className="flex items-center justify-between text-[10px] opacity-65 hover:opacity-95 transition-opacity duration-200"
                                     >
                                       <div
                                         className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
                                         onClick={() => onSelectTrack(track, p.tracks)}
                                       >
                                         <span className="truncate pr-2">{track.title}</span>
-                                        <span className="truncate text-neutral-500">{track.artist}</span>
+                                        <span className="truncate opacity-70">{track.artist}</span>
                                       </div>
                                       <button
                                         type="button"
@@ -540,14 +533,14 @@ export default function TrackList({
                                           onRemoveTrackFromPlaylist?.(p.id, track.id);
                                         }}
                                         title="Remove from playlist"
-                                        className="pixel-btn ml-2 flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                        className="pixel-btn ml-2 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-60 hover:bg-red-500/20 hover:text-red-400 hover:opacity-100 transition-colors"
                                       >
                                         ✕
                                       </button>
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-[10px] text-neutral-500">Empty playlist.</p>
+                                  <p className="text-[10px] opacity-50">Empty playlist.</p>
                                 )}
                               </div>
                             )}
@@ -555,7 +548,7 @@ export default function TrackList({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-neutral-500">No playlists created.</p>
+                      <p className="text-xs opacity-50">No playlists created.</p>
                     )}
                   </div>
                 </div>
@@ -581,17 +574,17 @@ export default function TrackList({
                         {(showAllRecents ? recentTracks : recentTracks.slice(0, 5)).map((t) => (
                           <div
                             key={`recent-${t.id}`}
-                            className="flex items-center justify-between text-xs cursor-pointer text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
+                            className="flex items-center justify-between text-xs cursor-pointer opacity-65 hover:opacity-95 transition-opacity duration-200"
                             onClick={() => onSelectTrack(t, recentTracks)}
                           >
                             <span className="truncate pr-2">{t.title}</span>
-                            <span className="text-neutral-500 text-[10px] shrink-0">{t.artist}</span>
+                            <span className="opacity-70 text-[10px] shrink-0">{t.artist}</span>
                           </div>
                         ))}
                         {recentTracks.length > 5 && !showAllRecents && (
                           <button
                             onClick={() => setShowAllRecents(true)}
-                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left opacity-50 hover:opacity-90 mt-1 transition-opacity duration-200"
                           >
                             Show all {recentTracks.length} recents
                           </button>
@@ -599,14 +592,14 @@ export default function TrackList({
                         {showAllRecents && recentTracks.length > 5 && (
                           <button
                             onClick={() => setShowAllRecents(false)}
-                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left opacity-50 hover:opacity-90 mt-1 transition-opacity duration-200"
                           >
                             Show less
                           </button>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-neutral-500">No recent history.</p>
+                      <p className="text-xs opacity-50">No recent history.</p>
                     )}
                   </div>
                 </div>
@@ -667,17 +660,10 @@ export default function TrackList({
               <div className="flex flex-col gap-6 animate-in fade-in duration-200">
                 <div className="rounded-2xl bg-neutral-900/40 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-medium opacity-50">CURRENT ACTIVE ROOM</span>
-                      {roomId && (
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-950/70 text-neutral-400">
-                          ID: {roomId}
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-[10px] font-medium opacity-50">CURRENT ACTIVE ROOM</span>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
-                      <h3 className="text-sm sm:text-base font-semibold font-mono tracking-wide text-neutral-300">
+                      <h3 className="text-sm sm:text-base font-semibold font-mono tracking-wide opacity-80">
                         {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)}
                       </h3>
                       <span className="text-xs opacity-60 font-mono">({listeners.length}/20 online)</span>
@@ -794,26 +780,6 @@ export default function TrackList({
                         className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none placeholder-neutral-600"
                       />
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold opacity-75">Code (Optional)</label>
-                      <input
-                        type="text"
-                        value={customRoomCode}
-                        onChange={(e) => setCustomRoomCode(e.target.value)}
-                        placeholder="e.g. #a1b2c3d4 (auto if blank)"
-                        className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs font-mono focus:outline-none placeholder-neutral-600"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-[11px] font-semibold opacity-75">Room ID (Optional)</label>
-                      <input
-                        type="text"
-                        value={customRoomId}
-                        onChange={(e) => setCustomRoomId(e.target.value)}
-                        placeholder="e.g. RM-1234ABCD (unique auto if blank)"
-                        className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs font-mono focus:outline-none placeholder-neutral-600"
-                      />
-                    </div>
                     <button
                       type="submit"
                       style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
@@ -869,7 +835,7 @@ export default function TrackList({
                   }
                 : { backgroundColor: surfaceBg }
             }
-            className="flex flex-col min-h-full"
+            className="flex flex-col h-full"
           >
             <div
               style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
@@ -880,14 +846,14 @@ export default function TrackList({
               <div>
                 <h2 className="text-lg font-medium sm:text-xl">Room Chat</h2>
                 <p className="text-xs opacity-60">
-                  {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)} {roomId ? `• ${roomId}` : ""} ({listeners.length}/20 online)
+                  {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)} ({listeners.length}/20 online)
                 </p>
               </div>
             </div>
 
-            <div className="flex-1 space-y-3 py-4 px-4 sm:px-6 md:px-8 max-w-4xl w-full">
+            <div className="flex-1 overflow-y-auto space-y-3 py-4 px-4 sm:px-6 md:px-8 w-full">
               {chatMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 text-xs">
+                <div className="flex flex-col items-center justify-center h-full py-20 text-center opacity-50 text-xs">
                   <p>No messages yet in this room.</p>
                   <p className="text-[10px] mt-1">Say hello to other listeners!</p>
                 </div>
@@ -929,7 +895,7 @@ export default function TrackList({
             <form
               onSubmit={handleSendChat}
               style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
-              className={`sticky bottom-0 z-30 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 ${
+              className={`sticky bottom-0 z-30 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 w-full ${
                 chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
               }`}
             >
@@ -938,12 +904,12 @@ export default function TrackList({
                 value={chatInputText}
                 onChange={(e) => setChatInputText(e.target.value)}
                 placeholder="Type a message..."
-                className="flex-1 max-w-4xl rounded-xl bg-neutral-900/90 px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none border border-neutral-800"
+                className="flex-1 w-full rounded-xl bg-neutral-900/90 px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none border border-neutral-800"
               />
               <button
                 type="submit"
                 style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
-                className="pixel-btn rounded-xl px-4 py-2.5 text-xs font-medium transition-colors hover:opacity-80"
+                className="pixel-btn shrink-0 rounded-xl px-4 py-2.5 text-xs font-medium transition-colors hover:opacity-80"
               >
                 Send
               </button>
@@ -1046,11 +1012,6 @@ export default function TrackList({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="truncate text-lg font-medium">{user?.username || "User"}</h3>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-emerald-400/20 text-emerald-300">SYNCED ACCOUNT</span>
-                  {user?.uid && (
-                    <span className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-neutral-800 text-neutral-300">
-                      ID: {user.uid}
-                    </span>
-                  )}
                 </div>
                 <p className="truncate text-xs opacity-60">{user?.email || ""}</p>
               </div>
