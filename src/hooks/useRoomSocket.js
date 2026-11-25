@@ -105,7 +105,7 @@ export function useRoomSocket({
                 if (data.my_username) localStorage.setItem("syncroom_active_username", data.my_username);
                 if (data.state) {
                   if (data.state.wallpaper) cbs.onWallpaperUpdate?.(data.state.wallpaper);
-                  if (data.state.track) cbs.onSyncChangeTrack?.(data.state.track);
+                  if (data.state.track) cbs.onSyncChangeTrack?.(data.state.track, data.state);
                   if (data.state.current_time !== undefined) cbs.onSyncSeek?.(data.state.current_time);
                   if (data.state.is_playing) cbs.onSyncPlay?.(data.state.current_time);
                   else cbs.onSyncPause?.(data.state.current_time);
@@ -156,7 +156,7 @@ export function useRoomSocket({
                 if (data.state) cbs.onSyncSeek?.(data.state.current_time);
                 break;
               case "SYNC_CHANGE_TRACK":
-                if (data.state?.track) cbs.onSyncChangeTrack?.(data.state.track);
+                if (data.state?.track) cbs.onSyncChangeTrack?.(data.state.track, data.state);
                 break;
               case "SYNC_UPDATE_QUEUE":
                 if (data.state?.queue) cbs.onSyncQueue?.(data.state.queue);
