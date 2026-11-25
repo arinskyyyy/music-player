@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-function getWebSocketUrl(roomCode, username, roomName = "") {
-  const query = `username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName || "")}`;
+function getWebSocketUrl(roomCode, username, roomName = "", isCreate = false) {
+  const query = `username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName || "")}&is_create=${isCreate ? "true" : "false"}`;
   try {
     const parsed = new URL(API_BASE);
     const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
@@ -20,6 +20,7 @@ export function useRoomSocket({
   roomCode = "",
   username = "Listener",
   roomName = "",
+  isCreate = false,
   isConnected: externalIsConnected,
   onSyncPlay,
   onSyncPause,
@@ -34,6 +35,7 @@ export function useRoomSocket({
   onChatHistory,
   onRoomNameUpdate,
   onRoomFull,
+  onRoomError,
   onSyncState,
 }) {
   const socketRef = useRef(null);
@@ -58,6 +60,7 @@ export function useRoomSocket({
       onChatHistory,
       onRoomNameUpdate,
       onRoomFull,
+      onRoomError,
       onSyncState,
     };
   });
@@ -68,7 +71,7 @@ export function useRoomSocket({
 
     const connect = () => {
       if (!isMounted) return;
-      const wsUrl = getWebSocketUrl(roomCode, username, roomName);
+      const wsUrl = getWebSocketUrl(roomCode, username, roomName, isCreate);
 
       try {
         const ws = new WebSocket(wsUrl);
@@ -116,6 +119,9 @@ export function useRoomSocket({
                 break;
               case "ROOM_FULL":
                 cbs.onRoomFull?.(data.detail || "Room is full (max 20 listeners)");
+                break;
+              case "ROOM_ERROR":
+                cbs.onRoomError?.(data.detail || "Unable to connect to room.");
                 break;
               case "SYNC_STATE":
                 if (data.host) cbs.onHostUpdate?.(data.host);
@@ -185,7 +191,7 @@ export function useRoomSocket({
         socketRef.current.close();
       }
     };
-  }, [roomCode, username, roomName, externalIsConnected]);
+  }, [roomCode, username, roomName, isCreate, externalIsConnected]);
 
   const sendAction = useCallback((action, payload = {}) => {
     const msg = JSON.stringify({ action, payload });

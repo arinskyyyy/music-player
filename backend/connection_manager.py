@@ -1,8 +1,24 @@
+import random
 import time
 from typing import Dict, List, Any
 from fastapi import WebSocket
 
 MAX_ROOM_CAPACITY = 20
+
+RANDOM_ROOM_NAMES = [
+    "Midnight Lo-Fi",
+    "Neon Arcade",
+    "Pixel Drift",
+    "Starlight Lounge",
+    "Cyber Oasis",
+    "Velvet Echo",
+    "Retro Wave",
+    "Lunar Studio",
+    "Synth Horizon",
+    "Cloud Nine",
+    "Electric Dreams",
+    "Sunset Stereo",
+]
 
 class ConnectionManager:
     def __init__(self):
@@ -17,11 +33,28 @@ class ConnectionManager:
         if room_code not in self.room_playback_state:
             self.room_playback_state[room_code] = {
                 "track": {"id": "track-1", "title": "Lobby Pixel Loop", "artist": "Columbina", "duration": "03:45", "src": "/lobby-loop.mp3", "cover": "/pixel-0.gif", "sourceLabel": "ROOM LOOP"},
-                "is_playing": False, "current_time": 0.0, "last_sync_timestamp": time.time(), "queue": [], "wallpaper": "/pixel-0.gif",
+                "is_playing": False, "current_time": 0.0, "last_sync_timestamp": time.time(), "queue": [], "wallpaper": "",
             }
         return self.room_playback_state[room_code]
 
-    async def connect(self, websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = ""):
+    def generate_unique_code(self) -> str:
+        chars = "0123456789abcdef"
+        while True:
+            code = "".join(random.choice(chars) for _ in range(8))
+            if code not in self.active_rooms:
+                return code
+
+    async def connect(self, websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = "", is_create: bool = False):
+        # Enforce unique room code when creating a new room
+        if is_create and room_code in self.active_rooms:
+            await websocket.accept()
+            await websocket.send_json({
+                "type": "ROOM_ERROR",
+                "detail": f"Room code #{room_code} is already active. Please choose a different code or leave it blank."
+            })
+            await websocket.close(code=1008)
+            return
+
         # Enforce room capacity limit: max 20 users per room
         if room_code in self.active_rooms and len(self.active_rooms[room_code]) >= MAX_ROOM_CAPACITY:
             await websocket.accept()
@@ -39,7 +72,7 @@ class ConnectionManager:
             self.active_rooms[room_code] = []
             self.room_members[room_code] = []
             self.room_hosts[room_code] = username
-            self.room_names[room_code] = room_name.strip() if room_name and room_name.strip() else "Stereo Lounge"
+            self.room_names[room_code] = room_name.strip() if room_name and room_name.strip() else random.choice(RANDOM_ROOM_NAMES)
             self.room_chats[room_code] = []
         elif room_name and room_name.strip() and not self.room_names.get(room_code):
             self.room_names[room_code] = room_name.strip()

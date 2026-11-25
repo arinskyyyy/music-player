@@ -30,6 +30,22 @@ const DEFAULT_CATALOG = [
   { id: "track-6", title: "Neon City Rain", artist: "Sample Beats", duration: "02:45", src: "https://raw.githubusercontent.com/rafaelreis-hotmart/Audio-Sample-files/master/sample.mp3", cover: "/pixel-11.jpg", sourceLabel: "STREAM" },
 ];
 
+const RANDOM_ROOM_NAMES = [
+  "Midnight Lo-Fi",
+  "Neon Arcade",
+  "Pixel Drift",
+  "Starlight Lounge",
+  "Cyber Oasis",
+  "Velvet Echo",
+  "Retro Wave",
+  "Lunar Studio",
+  "Synth Horizon",
+  "Cloud Nine",
+  "Electric Dreams",
+  "Sunset Stereo",
+];
+const pickRandomRoomName = () => RANDOM_ROOM_NAMES[Math.floor(Math.random() * RANDOM_ROOM_NAMES.length)];
+
 const ROOM_LISTENERS = [{ id: 1, name: "NeonSamurai" }, { id: 2, name: "PixelWanderer" }, { id: 3, name: "CyberColumbina" }];
 const COLOR_PRESETS = [{ name: "White", value: "#ffffff" }, { name: "Cyan", value: "#22d3ee" }, { name: "Violet", value: "#a855f7" }, { name: "Amber", value: "#facc15" }, { name: "Emerald", value: "#4ade80" }, { name: "Rose", value: "#fb7185" }];
 const TEXT_COLOR_PRESETS = [{ name: "Pure White", value: "#ffffff" }, { name: "Soft Silver", value: "#d4d4d4" }, { name: "Ice Cyan", value: "#67e8f9" }, { name: "Lemon", value: "#fef08a" }, { name: "Mint", value: "#86efac" }, { name: "Blush", value: "#f9a8d4" }];
@@ -110,7 +126,9 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState("discover");
   const [roomCode, setRoomCode] = useState(() => generateRoomCode());
-  const [roomName, setRoomName] = useState("Stereo Lounge");
+  const [roomName, setRoomName] = useState("");
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [chatWallpaper, setChatWallpaper] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [isLocallyPaused, setIsLocallyPaused] = useState(false);
   const [currentHost, setCurrentHost] = useState("");
@@ -275,8 +293,13 @@ export default function App() {
   const handleRemoteQueue = useCallback((syncQueue) => { if (Array.isArray(syncQueue)) setQueue(syncQueue); }, []);
   const handleRemoteListeners = useCallback((updatedListeners) => { if (Array.isArray(updatedListeners)) setListeners(updatedListeners); }, []);
   const handleHostUpdate = useCallback((newHost) => { if (newHost) setCurrentHost(newHost); }, []);
-  const handleKicked = useCallback((reason) => { alert(reason || "You were removed from the room by the host."); setIsInRoom(false); setRoomCode("LOBBY"); setActiveTab("rooms"); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); } }, []);
-  const handleWallpaperUpdate = useCallback((newWallpaper) => { if (newWallpaper) setWallpaper(newWallpaper); }, []);
+  const handleKicked = useCallback((reason) => { alert(reason || "You were removed from the room by the host."); setIsInRoom(false); setIsCreatingRoom(false); setChatWallpaper(null); setRoomCode("LOBBY"); setActiveTab("rooms"); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); } }, []);
+  const handleWallpaperUpdate = useCallback((newWallpaper) => {
+    if (newWallpaper) {
+      setWallpaper(newWallpaper);
+      setChatWallpaper(newWallpaper);
+    }
+  }, []);
   const activeUsername = localStorage.getItem("syncroom_active_username") || user?.username || "PlayerOne";
 
   const isUserHost = Boolean(
@@ -304,7 +327,18 @@ export default function App() {
   const handleRoomFull = useCallback((detail) => {
     alert(detail || "Room has reached its maximum capacity of 20 users.");
     setIsInRoom(false);
+    setIsCreatingRoom(false);
+    setChatWallpaper(null);
     setRoomCode("LOBBY");
+    setActiveTab("rooms");
+  }, []);
+
+  const handleRoomError = useCallback((detail) => {
+    alert(detail || "Unable to connect to room.");
+    setIsInRoom(false);
+    setIsCreatingRoom(false);
+    setChatWallpaper(null);
+    setRoomCode(generateRoomCode());
     setActiveTab("rooms");
   }, []);
 
@@ -339,6 +373,7 @@ export default function App() {
     roomCode: isAuthenticated && isInRoom ? roomCode : "",
     username: activeUsername,
     roomName: roomName,
+    isCreate: isCreatingRoom,
     onSyncPlay: handleRemotePlay,
     onSyncPause: handleRemotePause,
     onSyncSeek: handleRemoteSeek,
@@ -352,6 +387,7 @@ export default function App() {
     onChatHistory: handleChatHistory,
     onRoomNameUpdate: handleRoomNameUpdate,
     onRoomFull: handleRoomFull,
+    onRoomError: handleRoomError,
     onSyncState: handleSyncState,
   });
 
@@ -360,7 +396,9 @@ export default function App() {
       sendAction("PAUSE", { current_time: audioRef.current.currentTime });
     }
     setRoomCode(generateRoomCode());
-    setRoomName("Stereo Lounge");
+    setRoomName("");
+    setIsCreatingRoom(false);
+    setChatWallpaper(null);
     setChatMessages([]);
     setIsInRoom(false);
     if (activeTab === "chat") setActiveTab("rooms");
@@ -370,24 +408,42 @@ export default function App() {
     const normalized = normalizeRoomCode(code);
     if (!normalized) return;
     setRoomCode(normalized);
+    setRoomName("");
+    setIsCreatingRoom(false);
+    setChatWallpaper(null);
     setChatMessages([]);
     setIsInRoom(true);
-    setActiveTab("discover");
   };
 
-  const handleCreateRoom = (code, name) => {
-    const targetCode = normalizeRoomCode(code) || generateRoomCode();
+  const handleCreateRoom = async (code, name) => {
+    let targetCode = normalizeRoomCode(code);
+    if (!targetCode) {
+      try {
+        const res = await fetch(`${API_BASE}/api/rooms/generate`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.room_code) targetCode = data.room_code;
+        }
+      } catch { /* fallback below */ }
+      if (!targetCode) targetCode = generateRoomCode();
+    }
+    const targetName = (name && name.trim()) ? name.trim() : pickRandomRoomName();
     setRoomCode(targetCode);
-    if (name) setRoomName(name);
+    setRoomName(targetName);
+    setIsCreatingRoom(true);
+    setChatWallpaper(null);
     setCurrentHost(activeUsername);
     setChatMessages([]);
     setIsInRoom(true);
-    setActiveTab("discover");
   };
 
   const handleGiveLeadership = (targetName) => sendAction("GIVE_LEADERSHIP", { target_name: targetName });
   const handleKickUser = (targetName) => sendAction("KICK_USER", { target_name: targetName });
-  const handleChangeWallpaper = (newWp) => { setWallpaper(newWp); sendAction("CHANGE_WALLPAPER", { wallpaper: newWp }); };
+  const handleChangeWallpaper = (newWp) => {
+    setWallpaper(newWp);
+    setChatWallpaper(newWp);
+    sendAction("CHANGE_WALLPAPER", { wallpaper: newWp });
+  };
 
   useEffect(() => { if (!window.matchMedia) return; const mq = window.matchMedia("(prefers-color-scheme: dark)"); const handleChange = (e) => setSystemPrefersDark(e.matches); mq.addEventListener("change", handleChange); return () => mq.removeEventListener("change", handleChange); }, []);
   useEffect(() => { PIXEL_MEDIA.forEach((item) => { if (item.src !== selectedMedia.src) { const img = new Image(); img.src = item.src; } }); }, [selectedMedia.src]);
@@ -507,7 +563,7 @@ export default function App() {
         else {
           const data = await res.json(); const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode };
           localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser)); localStorage.setItem("syncroom_active_username", resolvedUser.username);
-          setUser(resolvedUser); setIsAuthenticated(true); setIsSubmitting(false);
+          setUser(resolvedUser); setActiveTab("discover"); setActiveView("workspace"); setIsAuthenticated(true); setIsSubmitting(false);
         }
       } else { const errData = await res.json().catch(() => ({})); setAuthError(errData.detail || "Authentication error occurred"); setIsSubmitting(false); }
     } catch { setAuthError("Server is unreachable. Please verify the backend is running on port 8000."); setIsSubmitting(false); }
@@ -896,7 +952,7 @@ export default function App() {
                 onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist} recentTracks={recentTracks}
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
                 chatMessages={chatMessages} onSendChatMessage={sendChatMessage} onResyncWithHost={requestSync} isUserHost={isUserHost}
-                isLocallyPaused={isLocallyPaused}
+                isLocallyPaused={isLocallyPaused} chatWallpaper={chatWallpaper}
               />
             )}
           </div>

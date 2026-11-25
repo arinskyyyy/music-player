@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { PixelHeartIcon } from "./PlayerBar";
-import { generateRoomCode, normalizeRoomCode, formatRoomCode } from "../roomCode";
+import { normalizeRoomCode, formatRoomCode } from "../roomCode";
 import SearchDropdown from "./SearchDropdown";
 
 const ChevronIcon = ({ isOpen }) => (
@@ -46,9 +46,9 @@ export default function TrackList({
   trendingTracks = [],
   chatMessages = [],
   onSendChatMessage,
-  onResyncWithHost,
   isUserHost = false,
   isLocallyPaused = false,
+  chatWallpaper = null,
   effectiveSiteColor = "#ffffff",
   effectiveTextColor = "#ffffff",
   surfaceBg = "#000000",
@@ -100,8 +100,8 @@ export default function TrackList({
 
   const handleCreateSubmit = (e) => {
     e.preventDefault();
-    const code = normalizeRoomCode(customRoomCode) || generateRoomCode();
-    const name = newRoomName.trim() || "Retro Pixel Lounge";
+    const code = normalizeRoomCode(customRoomCode);
+    const name = newRoomName.trim();
     onCreateRoom?.(code, name);
     setRoomNotice(`Created room!`);
     setNewRoomName("");
@@ -274,7 +274,10 @@ export default function TrackList({
       <div key={activeTab} className="tab-content-enter">
         {activeTab === "discover" && (
           <div className="flex flex-col gap-6">
-            <div className="flex flex-col justify-between gap-4 pb-2 sm:flex-row sm:items-end">
+            <div
+              style={{ backgroundColor: surfaceBg }}
+              className="sticky top-0 z-40 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
+            >
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl capitalize">{isSearching ? "Search Results" : "Internet catalog"}</h2>
                 <p className="mt-1 text-xs opacity-65">{isSearching ? "Smart ranked results matching description and community plays." : "Search the web, play trending songs, or upload your music."}</p>
@@ -332,7 +335,7 @@ export default function TrackList({
             ) : (
               <div className="flex flex-col gap-4 mt-2">
                 {/* FAVORITES */}
-                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-30">
+                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-20">
                   <button
                     onClick={() => setExpandedFavs(!expandedFavs)}
                     className="flex w-full items-center justify-between text-sm font-medium mb-2 group"
@@ -344,19 +347,19 @@ export default function TrackList({
                   </button>
                   <div
                     className={`transition-all duration-300 ${
-                      expandedFavs ? "max-h-[1000px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
+                      expandedFavs ? "max-h-[800px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
                     }`}
                   >
                     {favorites.length > 0 ? (
                       <div className="flex flex-col gap-2">
                         {(showAllFavs ? favorites : favorites.slice(0, 5)).map((t) => (
-                          <div key={t.id} className="flex items-center justify-between text-xs group relative rounded-lg px-2 py-1">
+                          <div key={t.id} className="flex items-center justify-between text-xs group relative">
                             <div
-                              className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 hover:opacity-80 transition-opacity duration-200"
+                              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 hover:opacity-80 transition-opacity duration-200"
                               onClick={() => onSelectTrack(t, favorites)}
                             >
-                              <span className="truncate font-medium">{t.title}</span>
-                              <span className="opacity-50 text-[10px] truncate">• {t.artist}</span>
+                              <span className="truncate pr-2">{t.title}</span>
+                              <span className="opacity-50 text-[10px] shrink-0">{t.artist}</span>
                             </div>
                             <div className="relative shrink-0">
                               <button
@@ -365,7 +368,7 @@ export default function TrackList({
                                   e.stopPropagation();
                                   setOpenFavMenu((prev) => (prev === t.id ? null : t.id));
                                 }}
-                                className="pixel-btn flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:text-white transition-colors duration-200"
+                                className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200"
                                 title="Options"
                               >
                                 ⋯
@@ -421,7 +424,7 @@ export default function TrackList({
                 </div>
 
                 {/* PLAYLISTS */}
-                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-20">
+                <div className="rounded-2xl bg-neutral-900/40 p-4 transition-all duration-300 relative z-10">
                   <div className="flex w-full items-center justify-between text-sm font-medium mb-2">
                     <span className="flex-1">Your Playlists</span>
                     <div className="flex items-center gap-2">
@@ -442,14 +445,14 @@ export default function TrackList({
                   </div>
                   <div
                     className={`transition-all duration-300 ${
-                      expandedPlaylists ? "max-h-[1000px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
+                      expandedPlaylists ? "max-h-[800px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
                     }`}
                   >
                     {playlists.length > 0 ? (
                       <div className="flex flex-col gap-2">
                         {playlists.map((p) => (
                           <div key={p.id} className="flex flex-col">
-                            <div className="flex items-center justify-between text-xs group relative rounded-lg px-2 py-1">
+                            <div className="flex items-center justify-between text-xs group relative">
                               <div
                                 className="flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80 transition-opacity duration-200 min-w-0"
                                 onClick={() => setExpandedPlaylistId(expandedPlaylistId === p.id ? null : p.id)}
@@ -466,7 +469,7 @@ export default function TrackList({
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 ) : (
-                                  <span className="truncate pr-2 flex-1 font-medium">{p.name}</span>
+                                  <span className="truncate pr-2 flex-1">{p.name}</span>
                                 )}
                                 <span className="opacity-50 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
                               </div>
@@ -476,7 +479,7 @@ export default function TrackList({
                                     e.stopPropagation();
                                     setOpenPlaylistMenu((prev) => (prev === p.id ? null : p.id));
                                   }}
-                                  className="pixel-btn flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:text-white transition-colors duration-200"
+                                  className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200"
                                 >
                                   ⋯
                                 </button>
@@ -509,39 +512,35 @@ export default function TrackList({
                               </div>
                             </div>
                             {expandedPlaylistId === p.id && (
-                              <div className="mt-2 pl-3 border-l border-neutral-700/80 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                              <div className="mt-2 pl-3 border-l border-neutral-700 flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
                                 {p.tracks && p.tracks.length > 0 ? (
                                   p.tracks.map((track, i) => (
                                     <div
                                       key={`${track.id}-${i}`}
-                                      className="group/track flex items-center justify-between rounded-lg px-2 py-1 text-xs text-neutral-300 hover:opacity-80 transition-opacity duration-150"
+                                      className="flex items-center justify-between text-[10px] text-neutral-400 hover:text-white transition-colors duration-200"
                                     >
                                       <div
-                                        className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
+                                        className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
                                         onClick={() => onSelectTrack(track, p.tracks)}
                                       >
-                                        <span className="text-[10px] opacity-40 font-mono w-4 shrink-0">#{i + 1}</span>
-                                        <span className="truncate font-medium">{track.title}</span>
-                                        <span className="truncate text-[10px] opacity-50">• {track.artist}</span>
+                                        <span className="truncate pr-2">{track.title}</span>
+                                        <span className="truncate opacity-50">{track.artist}</span>
                                       </div>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        <span className="text-[10px] opacity-40 font-mono">{track.duration || "03:00"}</span>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onRemoveTrackFromPlaylist?.(p.id, track.id);
-                                          }}
-                                          title="Remove from playlist"
-                                          className="pixel-btn flex h-5 w-5 items-center justify-center rounded text-neutral-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onRemoveTrackFromPlaylist?.(p.id, track.id);
+                                        }}
+                                        title="Remove from playlist"
+                                        className="pixel-btn ml-2 flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                      >
+                                        ✕
+                                      </button>
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-[10px] opacity-40 py-1 pl-1">Empty playlist. Add songs using the search bar.</p>
+                                  <p className="text-[10px] opacity-40">Empty playlist.</p>
                                 )}
                               </div>
                             )}
@@ -575,11 +574,11 @@ export default function TrackList({
                         {(showAllRecents ? recentTracks : recentTracks.slice(0, 5)).map((t) => (
                           <div
                             key={`recent-${t.id}`}
-                            className="flex items-center justify-between text-xs cursor-pointer hover:opacity-80 transition-opacity duration-200 px-2 py-1"
+                            className="flex items-center justify-between text-xs cursor-pointer hover:opacity-80 transition-opacity duration-200"
                             onClick={() => onSelectTrack(t, recentTracks)}
                           >
-                            <span className="truncate pr-2 font-medium">{t.title}</span>
-                            <span className="opacity-50 text-[10px] shrink-0">• {t.artist}</span>
+                            <span className="truncate pr-2">{t.title}</span>
+                            <span className="opacity-50 text-[10px] shrink-0">{t.artist}</span>
                           </div>
                         ))}
                         {recentTracks.length > 5 && !showAllRecents && (
@@ -688,13 +687,6 @@ export default function TrackList({
                     </button>
                     <button
                       type="button"
-                      onClick={onResyncWithHost}
-                      className="pixel-btn rounded-xl bg-neutral-800/80 px-3 py-1.5 text-xs font-medium hover:bg-neutral-700 transition-colors duration-200"
-                    >
-                      SYNC WITH HOST
-                    </button>
-                    <button
-                      type="button"
                       onClick={onExitRoom}
                       style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
                       className="pixel-btn rounded-xl px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80"
@@ -757,7 +749,7 @@ export default function TrackList({
                         type="text"
                         value={newRoomName}
                         onChange={(e) => setNewRoomName(e.target.value)}
-                        placeholder="e.g. Cyber Lounge"
+                        placeholder="e.g. Cyber Lounge (random if blank)"
                         className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none placeholder-neutral-600"
                       />
                     </div>
@@ -767,7 +759,7 @@ export default function TrackList({
                         type="text"
                         value={customRoomCode}
                         onChange={(e) => setCustomRoomCode(e.target.value)}
-                        placeholder="e.g. #a1b2c3d4"
+                        placeholder="e.g. #a1b2c3d4 (auto if blank)"
                         className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs font-mono focus:outline-none placeholder-neutral-600"
                       />
                     </div>
@@ -815,26 +807,36 @@ export default function TrackList({
         )}
 
         {activeTab === "chat" && (
-          <div className="flex flex-col h-[calc(100vh-10rem)] max-w-4xl gap-4">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-800/80 shrink-0">
+          <div
+            style={
+              chatWallpaper
+                ? {
+                    backgroundImage: `linear-gradient(rgba(0,0,0,0.62), rgba(0,0,0,0.68)), url(${chatWallpaper})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    backgroundAttachment: "local",
+                  }
+                : { backgroundColor: surfaceBg }
+            }
+            className="flex flex-col min-h-[calc(100vh-10.5rem)] -m-4 sm:-m-6 md:-m-8 p-4 sm:p-6 md:p-8"
+          >
+            <div
+              style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
+              className={`sticky top-0 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex items-center justify-between border-b border-neutral-800/80 shrink-0 ${
+                chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
+              }`}
+            >
               <div>
                 <h2 className="text-lg font-medium sm:text-xl">Room Chat</h2>
                 <p className="text-xs opacity-60">
                   {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)} ({listeners.length}/20 online)
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onResyncWithHost}
-                className="pixel-btn rounded-xl bg-neutral-800/80 px-3 py-1.5 text-xs font-medium hover:bg-neutral-700 transition-colors duration-200"
-              >
-                SYNC WITH HOST
-              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+            <div className="flex-1 space-y-3 py-4 max-w-4xl w-full">
               {chatMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center opacity-40 text-xs">
+                <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 text-xs">
                   <p>No messages yet in this room.</p>
                   <p className="text-[10px] mt-1">Say hello to other listeners!</p>
                 </div>
@@ -843,7 +845,7 @@ export default function TrackList({
                   if (msg.is_system) {
                     return (
                       <div key={msg.id} className="flex justify-center my-2">
-                        <span className="rounded-full bg-neutral-900/80 px-3 py-1 text-[11px] text-neutral-400 font-medium">
+                        <span className="rounded-full bg-neutral-900/85 px-3 py-1 text-[11px] text-neutral-300 font-medium">
                           {msg.text}
                         </span>
                       </div>
@@ -853,15 +855,15 @@ export default function TrackList({
                   const isMe = user?.username && msg.sender.toLowerCase() === user.username.toLowerCase();
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                      <div className="flex items-center gap-1.5 text-[10px] opacity-60 mb-0.5 px-1">
+                      <div className="flex items-center gap-1.5 text-[10px] opacity-70 mb-0.5 px-1">
                         <span className="font-semibold">{msg.sender}</span>
                         {msg.is_host && <span className="text-[8px] bg-amber-400/20 text-amber-300 px-1 rounded">HOST</span>}
                       </div>
                       <div
                         className={`rounded-2xl px-3.5 py-2 text-xs max-w-md break-words ${
                           isMe
-                            ? "bg-neutral-800 text-white rounded-tr-none"
-                            : "bg-neutral-900/80 text-neutral-200 rounded-tl-none border border-neutral-800/60"
+                            ? "bg-neutral-800/95 text-white rounded-tr-none"
+                            : "bg-neutral-900/90 text-neutral-200 rounded-tl-none border border-neutral-800/60"
                         }`}
                       >
                         {msg.text}
@@ -873,13 +875,19 @@ export default function TrackList({
               <div ref={chatBottomRef} />
             </div>
 
-            <form onSubmit={handleSendChat} className="flex items-center gap-2 pt-2 border-t border-neutral-800/80 shrink-0">
+            <form
+              onSubmit={handleSendChat}
+              style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
+              className={`sticky bottom-0 z-30 -mx-4 -mb-4 px-4 pb-4 pt-3 sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6 md:-mx-8 md:-mb-8 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 ${
+                chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
+              }`}
+            >
               <input
                 type="text"
                 value={chatInputText}
                 onChange={(e) => setChatInputText(e.target.value)}
                 placeholder="Type a message..."
-                className="flex-1 rounded-xl bg-neutral-900 px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none border border-neutral-800"
+                className="flex-1 max-w-4xl rounded-xl bg-neutral-900/90 px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none border border-neutral-800"
               />
               <button
                 type="submit"
@@ -894,21 +902,15 @@ export default function TrackList({
 
         {activeTab === "queue" && (
           <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between pb-2">
+            <div
+              style={{ backgroundColor: surfaceBg }}
+              className="sticky top-0 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex items-center justify-between"
+            >
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl">Room Queue</h2>
                 <p className="mt-1 text-xs opacity-65">Tracks scheduled to play in order.</p>
               </div>
               <div className="flex items-center gap-2">
-                {isInRoom && (
-                  <button
-                    type="button"
-                    onClick={onResyncWithHost}
-                    className="pixel-btn rounded-lg bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium transition-colors duration-200"
-                  >
-                    SYNC WITH HOST
-                  </button>
-                )}
                 {queue.length > 0 && (
                   <button
                     type="button"
@@ -940,15 +942,6 @@ export default function TrackList({
                     </p>
                   </div>
                 </div>
-                {isInRoom && (
-                  <button
-                    type="button"
-                    onClick={onResyncWithHost}
-                    className="pixel-btn shrink-0 rounded-xl bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium transition-colors duration-200 hidden sm:inline-block"
-                  >
-                    SYNC WITH HOST
-                  </button>
-                )}
               </div>
             )}
             {queue.length > 0 ? (

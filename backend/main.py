@@ -27,9 +27,22 @@ app.include_router(user.router)
 def health_check():
     return {"status": "healthy", "service": settings.PROJECT_NAME, "version": settings.VERSION}
 
+@app.get("/api/rooms/generate")
+def generate_room_code():
+    return {"room_code": manager.generate_unique_code()}
+
+@app.get("/api/rooms/check/{room_code}")
+def check_room_code(room_code: str):
+    normalized = room_code.strip().lstrip("#").lower()
+    return {
+        "exists": normalized in manager.active_rooms,
+        "room_name": manager.room_names.get(normalized, ""),
+        "listeners_count": len(manager.active_rooms.get(normalized, [])),
+    }
+
 @app.websocket("/ws/rooms/{room_code}")
-async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = ""):
-    await manager.connect(websocket, room_code=room_code, username=username, room_name=room_name)
+async def room_websocket_endpoint(websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = "", is_create: bool = False):
+    await manager.connect(websocket, room_code=room_code, username=username, room_name=room_name, is_create=is_create)
     try:
         while True:
             data = await websocket.receive_json()
