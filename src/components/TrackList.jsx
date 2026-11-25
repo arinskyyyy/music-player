@@ -232,7 +232,7 @@ export default function TrackList({
         </div>
         <span className="hidden sm:inline text-xs opacity-75 truncate pr-3">{track.artist}</span>
         <span className="hidden sm:inline text-right font-mono text-xs tabular-nums opacity-60 w-14 shrink-0 pr-2">{track.duration}</span>
-        <div className="mt-2 flex w-full items-center justify-between sm:mt-0 sm:w-auto sm:justify-end gap-1.5 shrink-0">
+        <div className="mt-2 flex w-full items-center justify-between sm:mt-0 sm:w-auto sm:justify-end gap-1.5 shrink-0 flex-wrap">
           <span className="font-mono text-[11px] tabular-nums opacity-60 sm:hidden">{track.duration}</span>
           <div className="flex items-center gap-1.5 shrink-0 relative">
             <button
@@ -248,7 +248,7 @@ export default function TrackList({
               type="button"
               onClick={() => onSelectTrack(track, listContext)}
               style={isCurrent ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}}
-              className={`pixel-btn w-20 flex items-center justify-center rounded-lg py-1.5 text-[11px] font-medium transition-colors duration-200 shrink-0 ${
+              className={`pixel-btn px-3 sm:px-0 sm:w-20 flex items-center justify-center rounded-lg py-1.5 text-[11px] font-medium transition-colors duration-200 shrink-0 ${
                 !isCurrent ? "bg-neutral-900/60 hover:bg-neutral-800" : ""
               }`}
             >
@@ -305,19 +305,19 @@ export default function TrackList({
   };
 
   return (
-    <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-0">
+    <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-0 min-h-0 min-w-0">
       <div key={activeTab} className="tab-content-enter h-full">
         {activeTab === "discover" && (
           <div className="flex flex-col gap-4">
             <div
               style={{ backgroundColor: surfaceBg }}
-              className="sticky top-0 z-40 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
+              className="sticky top-0 z-40 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"
             >
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl capitalize">{isSearching ? "Search Results" : "Internet catalog"}</h2>
                 <p className="mt-1 text-xs opacity-65">{isSearching ? "Smart ranked results matching description and community plays." : "Search the web, play trending songs, or upload your music."}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                 {isSearching && (
                   <button
                     onClick={() => {
@@ -920,7 +920,7 @@ export default function TrackList({
                         {msg.is_host && <span className="text-[8px] bg-amber-400/25 text-amber-300 px-1 rounded">HOST</span>}
                       </div>
                       <div
-                        className={`rounded-2xl px-3.5 py-2 text-xs max-w-md break-words shadow-sm ${
+                        className={`rounded-2xl px-3.5 py-2 text-xs max-w-[82%] sm:max-w-md break-words shadow-sm ${
                           isMe
                             ? "bg-neutral-800/95 text-white rounded-tr-none"
                             : "bg-neutral-900/95 text-neutral-200 rounded-tl-none border border-neutral-800/60"
