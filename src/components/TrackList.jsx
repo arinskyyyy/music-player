@@ -20,7 +20,13 @@ export default function TrackList({
   onAddToQueue,
   onRemoveFromQueue,
   onClearQueue,
-  onLoadAllToQueue,
+  onAddTracksToQueue,
+  onNavigateTab,
+  queueRequests = [],
+  onRequestQueueAdd,
+  onEditQueueRequest,
+  onCancelQueueRequest,
+  onResolveQueueRequest,
   localTracks = [],
   onImportLocalFiles,
   favorites = [],
@@ -82,12 +88,21 @@ export default function TrackList({
   const [openFavMenu, setOpenFavMenu] = useState(null);
   const [openPlaylistMenu, setOpenPlaylistMenu] = useState(null);
   const [openSearchMenu, setOpenSearchMenu] = useState(null);
+  const [showQueueImportMenu, setShowQueueImportMenu] = useState(false);
+  const [showQueuePlaylistPicker, setShowQueuePlaylistPicker] = useState(false);
+  const [queueNotice, setQueueNotice] = useState("");
+  const [requestSearchQuery, setRequestSearchQuery] = useState("");
+  const [requestSearchResults, setRequestSearchResults] = useState([]);
+  const [isSearchingRequests, setIsSearchingRequests] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState(null);
 
   useEffect(() => {
     const handleClick = () => {
       setOpenFavMenu(null);
       setOpenPlaylistMenu(null);
       setOpenSearchMenu(null);
+      setShowQueueImportMenu(false);
+      setShowQueuePlaylistPicker(false);
     };
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
@@ -131,6 +146,25 @@ export default function TrackList({
     setSearchResults(results);
     setIsSearching(true);
     onSearchChange(query);
+  };
+
+  const handleRequestSearch = async (e) => {
+    e.preventDefault();
+    if (!requestSearchQuery.trim()) return;
+    setIsSearchingRequests(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE || "http://localhost:8000"}/api/music/external-search?q=${encodeURIComponent(requestSearchQuery.trim())}&limit=10`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setRequestSearchResults(data.tracks || []);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setIsSearchingRequests(false);
+    }
   };
 
   const handleLoadMore = async () => {
@@ -963,11 +997,16 @@ export default function TrackList({
                     </span>
                     <h3 className="mt-1 truncate text-base font-medium">{currentTrack.title}</h3>
                     <p className="truncate text-xs opacity-60">
-                      {currentTrack.artist} // {currentTrack.duration}
+                      {currentTrack.artist} / {currentTrack.duration}
                     </p>
                   </div>
                 </div>
               </div>
+            )}
+            {queueNotice && (
+              <p className="auth-soft-enter rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-4 py-2 text-center text-xs font-medium text-emerald-400">
+                {queueNotice}
+              </p>
             )}
             {queue.length > 0 ? (
               <div className="flex flex-col gap-2">
@@ -996,10 +1035,276 @@ export default function TrackList({
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-neutral-900/20 p-8 text-center">
                 <p className="text-xs font-medium opacity-50">QUEUE IS EMPTY</p>
-                <p className="max-w-md text-xs opacity-65">Add songs from the catalog or local files.</p>
-                <button type="button" onClick={onLoadAllToQueue} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 hover:opacity-80">
-                  QUEUE ALL SONGS
-                </button>
+                <p className="max-w-md text-xs opacity-65">Add songs from your favorites, playlists, or local files.</p>
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQueueImportMenu((prev) => !prev);
+                      setShowQueuePlaylistPicker(false);
+                    }}
+                    style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                    className="pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 hover:opacity-80"
+                  >
+                    QUEUE SONGS ▾
+                  </button>
+                  {showQueueImportMenu && (
+                    <div
+                      style={{ backgroundColor: surfaceBg === "#ffffff" ? "#ffffff" : "#141414", color: effectiveTextColor }}
+                      className="popover-enter absolute left-1/2 -translate-x-1/2 top-full mt-2 w-60 rounded-2xl border border-neutral-800 shadow-2xl p-2 z-50 text-left"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (favorites.length > 0) {
+                            onAddTracksToQueue?.(favorites);
+                            setQueueNotice(`Added ${favorites.length} favorites to queue.`);
+                          } else {
+                            setQueueNotice("No favorites saved yet.");
+                          }
+                          setShowQueueImportMenu(false);
+                          setTimeout(() => setQueueNotice(""), 3000);
+                        }}
+                        className="block w-full rounded-xl px-3 py-2 text-xs font-medium hover:bg-neutral-800/60 transition-colors"
+                      >
+                        Import from Your Favorites
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowQueuePlaylistPicker((prev) => !prev)}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium hover:bg-neutral-800/60 transition-colors"
+                      >
+                        <span>Import from Your Playlists</span>
+                        <span className="opacity-50 text-[10px]">{showQueuePlaylistPicker ? "▲" : "▼"}</span>
+                      </button>
+                      {showQueuePlaylistPicker && (
+                        <div className="ml-2 pl-2 border-l border-neutral-800 my-1 flex flex-col gap-1 max-h-36 overflow-y-auto">
+                          {playlists.length === 0 ? (
+                            <p className="px-2 py-1 text-[10px] opacity-50">No playlists created.</p>
+                          ) : (
+                            playlists.map((pl) => (
+                              <button
+                                key={pl.id}
+                                type="button"
+                                onClick={() => {
+                                  if (pl.tracks && pl.tracks.length > 0) {
+                                    onAddTracksToQueue?.(pl.tracks);
+                                    setQueueNotice(`Added ${pl.tracks.length} tracks from "${pl.name}".`);
+                                  } else {
+                                    setQueueNotice(`"${pl.name}" is empty.`);
+                                  }
+                                  setShowQueueImportMenu(false);
+                                  setShowQueuePlaylistPicker(false);
+                                  setTimeout(() => setQueueNotice(""), 3000);
+                                }}
+                                className="block w-full rounded-lg px-2 py-1.5 text-left text-[11px] opacity-80 hover:opacity-100 hover:bg-neutral-800/60 truncate"
+                              >
+                                {pl.name} ({pl.tracks?.length || 0})
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowQueueImportMenu(false);
+                          onNavigateTab?.("storage");
+                        }}
+                        className="block w-full rounded-xl px-3 py-2 text-xs font-medium hover:bg-neutral-800/60 transition-colors"
+                      >
+                        Import Locally
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isInRoom && (
+              <div className="rounded-2xl bg-neutral-900/40 p-4 sm:p-5 flex flex-col gap-4">
+                {isUserHost ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium">Incoming Song Requests</h3>
+                        <p className="text-[11px] opacity-60">Accept or deny songs requested by room listeners.</p>
+                      </div>
+                      <span className="text-[11px] font-mono opacity-60">
+                        {queueRequests.filter((r) => r.status === "pending").length} pending
+                      </span>
+                    </div>
+                    {queueRequests.filter((r) => r.status === "pending").length === 0 ? (
+                      <p className="text-xs opacity-50">No pending song requests.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {queueRequests
+                          .filter((r) => r.status === "pending")
+                          .map((req) => (
+                            <div key={req.id} className="flex items-center justify-between gap-3 rounded-xl bg-neutral-950/60 p-3 text-xs">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-neutral-900">
+                                  {req.track?.cover ? (
+                                    <img src={req.track.cover} alt={req.track.title} className="h-full w-full object-cover [image-rendering:pixelated]" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">♪</div>
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{req.track?.title}</p>
+                                  <p className="text-[10px] opacity-60 truncate">
+                                    {req.track?.artist} • Requested by <span className="font-semibold">{req.requester}</span>
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => onResolveQueueRequest?.(req.id, "accept")}
+                                  className="pixel-btn rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-2.5 py-1 text-[11px] font-medium transition-colors"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onResolveQueueRequest?.(req.id, "deny")}
+                                  className="pixel-btn rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 px-2.5 py-1 text-[11px] font-medium transition-colors"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <h3 className="text-sm font-medium">
+                        {editingRequestId ? "Edit Requested Song" : "Request a Song for Queue"}
+                      </h3>
+                      <p className="text-[11px] opacity-60">
+                        {editingRequestId
+                          ? "Search and pick a replacement song for your pending request."
+                          : "Search for a song to request the host to add it to the room queue."}
+                      </p>
+                    </div>
+                    <form onSubmit={handleRequestSearch} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={requestSearchQuery}
+                        onChange={(e) => setRequestSearchQuery(e.target.value)}
+                        placeholder="Search song title or artist..."
+                        className="flex-1 rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isSearchingRequests}
+                        style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                        className="pixel-btn rounded-xl px-3.5 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                      >
+                        {isSearchingRequests ? "Searching..." : "Search"}
+                      </button>
+                      {editingRequestId && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingRequestId(null)}
+                          className="pixel-btn rounded-xl bg-neutral-800 px-3 py-2 text-xs font-medium hover:bg-neutral-700"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </form>
+                    {requestSearchResults.length > 0 && (
+                      <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                        {requestSearchResults.map((track) => (
+                          <div key={track.id} className="flex items-center justify-between gap-2 rounded-xl bg-neutral-950/60 px-3 py-2 text-xs">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{track.title}</p>
+                              <p className="text-[10px] opacity-55 truncate">{track.artist} / {track.duration}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (editingRequestId) {
+                                  onEditQueueRequest?.(editingRequestId, track);
+                                  setEditingRequestId(null);
+                                  setQueueNotice("Updated your requested song.");
+                                } else {
+                                  onRequestQueueAdd?.(track);
+                                  setQueueNotice(`Sent request for "${track.title}" to host.`);
+                                }
+                                setRequestSearchResults([]);
+                                setRequestSearchQuery("");
+                                setTimeout(() => setQueueNotice(""), 3000);
+                              }}
+                              style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                              className="pixel-btn shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium hover:opacity-80"
+                            >
+                              {editingRequestId ? "Save" : "Request"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="border-t border-neutral-800/70 pt-3">
+                      <p className="text-[10px] font-medium opacity-50 mb-2">REQUESTS SENT</p>
+                      {(() => {
+                        const myName = (localStorage.getItem("syncroom_active_username") || user?.username || "").toLowerCase();
+                        const myReqs = queueRequests.filter((r) => (r.requester || "").toLowerCase() === myName);
+                        if (myReqs.length === 0) {
+                          return <p className="text-xs opacity-50">You haven&apos;t sent any song requests yet.</p>;
+                        }
+                        return (
+                          <div className="flex flex-col gap-2">
+                            {myReqs.map((req) => (
+                              <div key={req.id} className="flex items-center justify-between gap-2 rounded-xl bg-neutral-950/60 px-3 py-2 text-xs">
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{req.track?.title}</p>
+                                  <p className="text-[10px] opacity-55 truncate">{req.track?.artist}</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span
+                                    className={`rounded px-1.5 py-0.5 text-[9px] font-medium uppercase ${
+                                      req.status === "accepted"
+                                        ? "bg-emerald-500/20 text-emerald-300"
+                                        : req.status === "denied"
+                                        ? "bg-red-500/20 text-red-400"
+                                        : "bg-amber-400/20 text-amber-300"
+                                    }`}
+                                  >
+                                    {req.status}
+                                  </span>
+                                  {req.status === "pending" && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingRequestId(req.id)}
+                                        className="pixel-btn rounded-lg bg-neutral-800 hover:bg-neutral-700 px-2 py-1 text-[10px] font-medium"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => onCancelQueueRequest?.(req.id)}
+                                        className="pixel-btn rounded-lg bg-neutral-800 hover:bg-red-500/20 hover:text-red-400 px-2 py-1 text-[10px]"
+                                        title="Cancel request"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </>
+                )}
               </div>
             )}
             </div>
@@ -1097,7 +1402,7 @@ export default function TrackList({
                         <span className="font-medium opacity-50">♪</span>
                         <div className="min-w-0">
                           <p className="truncate font-medium">{track.title}</p>
-                          <p className="text-[10px] opacity-50">{track.artist} // LOCAL DISK</p>
+                          <p className="text-[10px] opacity-50">{track.artist} / LOCAL DISK</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
