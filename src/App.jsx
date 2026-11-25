@@ -557,7 +557,7 @@ export default function App() {
       setChatWallpaper(newWallpaper);
     }
   }, []);
-  const activeUsername = localStorage.getItem("syncroom_active_username") || user?.username || "PlayerOne";
+  const activeUsername = user?.username || "PlayerOne";
 
   const isUserHost = Boolean(
     isInRoom &&
