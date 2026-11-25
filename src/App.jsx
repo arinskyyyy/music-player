@@ -139,6 +139,7 @@ export default function App() {
   const [roomId, setRoomId] = useState("");
   const [roomName, setRoomName] = useState("");
   const [kickedUsers, setKickedUsers] = useState([]);
+  const [queueRequests, setQueueRequests] = useState([]);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [chatWallpaper, setChatWallpaper] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
@@ -588,6 +589,10 @@ export default function App() {
     if (Array.isArray(list)) setKickedUsers(list);
   }, []);
 
+  const handleQueueRequestsUpdate = useCallback((list) => {
+    if (Array.isArray(list)) setQueueRequests(list);
+  }, []);
+
   const handleRoomFull = useCallback((detail) => {
     alert(detail || "Room has reached its maximum capacity of 20 users.");
     setIsInRoom(false);
@@ -673,6 +678,7 @@ export default function App() {
     onRoomNameUpdate: handleRoomNameUpdate,
     onRoomIdUpdate: handleRoomIdUpdate,
     onKickedUsersUpdate: handleKickedUsersUpdate,
+    onQueueRequestsUpdate: handleQueueRequestsUpdate,
     onRoomFull: handleRoomFull,
     onRoomError: handleRoomError,
     onSyncState: handleSyncState,
@@ -686,6 +692,7 @@ export default function App() {
     setRoomId("");
     setRoomName("");
     setKickedUsers([]);
+    setQueueRequests([]);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
     setChatMessages([]);
@@ -700,6 +707,7 @@ export default function App() {
     setRoomId("");
     setRoomName("");
     setKickedUsers([]);
+    setQueueRequests([]);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
     setChatMessages([]);
@@ -725,6 +733,7 @@ export default function App() {
     setRoomId(targetRoomId);
     setRoomName(targetName);
     setKickedUsers([]);
+    setQueueRequests([]);
     setIsCreatingRoom(true);
     setChatWallpaper(null);
     setCurrentHost(activeUsername);
@@ -735,6 +744,10 @@ export default function App() {
   const handleGiveLeadership = (targetName) => sendAction("GIVE_LEADERSHIP", { target_name: targetName });
   const handleKickUser = (targetName) => sendAction("KICK_USER", { target_name: targetName });
   const handleAllowUser = (targetName) => sendAction("ALLOW_USER", { target_name: targetName });
+  const handleRequestQueueAdd = (track) => sendAction("REQUEST_QUEUE_ADD", { track });
+  const handleEditQueueRequest = (requestId, track) => sendAction("EDIT_QUEUE_REQUEST", { request_id: requestId, track });
+  const handleCancelQueueRequest = (requestId) => sendAction("CANCEL_QUEUE_REQUEST", { request_id: requestId });
+  const handleResolveQueueRequest = (requestId, decision) => sendAction("RESOLVE_QUEUE_REQUEST", { request_id: requestId, decision });
   const handleChangeWallpaper = (newWp) => {
     setWallpaper(newWp);
     setChatWallpaper(newWp);
@@ -851,6 +864,12 @@ export default function App() {
 
   const handleSeek = (timeSeconds) => { if (audioRef.current) { audioRef.current.currentTime = timeSeconds; setCurrentTime(timeSeconds); if (!isRemoteAction.current) sendAction("SEEK", { current_time: timeSeconds }); } };
   const handleAddToQueue = (track) => { const nextQ = [...queue, track]; setQueue(nextQ); if (!isRemoteAction.current) sendAction("UPDATE_QUEUE", { queue: nextQ }); };
+  const handleAddTracksToQueue = (tracksToAdd) => {
+    if (!Array.isArray(tracksToAdd) || tracksToAdd.length === 0) return;
+    const nextQ = [...queue, ...tracksToAdd];
+    setQueue(nextQ);
+    if (!isRemoteAction.current) sendAction("UPDATE_QUEUE", { queue: nextQ });
+  };
   const handleRemoveFromQueue = (index) => { const nextQ = queue.filter((_, i) => i !== index); setQueue(nextQ); if (!isRemoteAction.current) sendAction("UPDATE_QUEUE", { queue: nextQ }); };
   const handleClearQueue = () => { setQueue([]); if (!isRemoteAction.current) sendAction("UPDATE_QUEUE", { queue: [] }); };
   const handleLoadAllToQueue = () => { const all = [...catalog]; setQueue(all); setCurrentPlaybackList(all); if (!isRemoteAction.current) sendAction("UPDATE_QUEUE", { queue: all }); };
@@ -1456,6 +1475,9 @@ export default function App() {
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
                 chatMessages={chatMessages} onSendChatMessage={(text) => sendChatMessage(text, user?.avatar_url || "")} onResyncWithHost={requestSync} isUserHost={isUserHost}
                 isLocallyPaused={isLocallyPaused} chatWallpaper={chatWallpaper} onUploadAvatar={handleUploadAvatar}
+                onAddTracksToQueue={handleAddTracksToQueue} onNavigateTab={setActiveTab}
+                queueRequests={queueRequests} onRequestQueueAdd={handleRequestQueueAdd} onEditQueueRequest={handleEditQueueRequest}
+                onCancelQueueRequest={handleCancelQueueRequest} onResolveQueueRequest={handleResolveQueueRequest}
               />
             )}
           </div>
