@@ -161,6 +161,8 @@ export default function App() {
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isRemoteAction = useRef(false);
+  const isLocallyPausedRef = useRef(false);
+  const pendingSyncTimeRef = useRef(null);
   const settingsAvatarInputRef = useRef(null);
   const [settingsUsername, setSettingsUsername] = useState(() => user?.username || "");
   const [settingsEmail, setSettingsEmail] = useState(() => user?.email || "");
@@ -448,14 +450,98 @@ export default function App() {
     }
   };
 
-  const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setShowAudioPrompt(false); }).catch(() => { setShowAudioPrompt(true); }); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
-  const handleRemotePause = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.pause(); setIsPlaying(false); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
-  const handleRemoteSeek = useCallback((seekTime) => { isRemoteAction.current = true; if (audioRef.current && Math.abs(audioRef.current.currentTime - seekTime) > 0.5) { audioRef.current.currentTime = seekTime; setCurrentTime(seekTime); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
-  
-  const handleRemoteChangeTrack = useCallback((syncTrack) => {
-    if (syncTrack && syncTrack.id !== currentTrack?.id) {
-      isRemoteAction.current = true; setCurrentTrack(syncTrack); addToRecents(syncTrack); incrementPlayCount(syncTrack); setCurrentPlaybackList(catalog); 
-      if (audioRef.current) { audioRef.current.src = syncTrack.src; audioRef.current.currentTime = 0; }
+  const resolveAudioUrl = (src) => {
+    try { return new URL(src, window.location.href).href; } catch { return src; }
+  };
+
+  const handleRemotePlay = useCallback((serverTime) => {
+    if (isLocallyPausedRef.current) return;
+    isRemoteAction.current = true;
+    if (audioRef.current) {
+      if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.0) {
+        pendingSyncTimeRef.current = serverTime;
+        audioRef.current.currentTime = serverTime;
+        setCurrentTime(serverTime);
+      }
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+        setShowAudioPrompt(false);
+        if (pendingSyncTimeRef.current !== null && audioRef.current && Math.abs(audioRef.current.currentTime - pendingSyncTimeRef.current) > 0.8) {
+          audioRef.current.currentTime = pendingSyncTimeRef.current;
+          setCurrentTime(pendingSyncTimeRef.current);
+          pendingSyncTimeRef.current = null;
+        }
+      }).catch(() => {
+        setShowAudioPrompt(true);
+      });
+    }
+    setTimeout(() => { isRemoteAction.current = false; }, 150);
+  }, []);
+
+  const handleRemotePause = useCallback((serverTime) => {
+    isRemoteAction.current = true;
+    isLocallyPausedRef.current = false;
+    setIsLocallyPaused(false);
+    if (audioRef.current) {
+      if (serverTime !== undefined) {
+        audioRef.current.currentTime = serverTime;
+        setCurrentTime(serverTime);
+      }
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+    setTimeout(() => { isRemoteAction.current = false; }, 150);
+  }, []);
+
+  const handleRemoteSeek = useCallback((seekTime) => {
+    if (isLocallyPausedRef.current) return;
+    isRemoteAction.current = true;
+    if (audioRef.current && Math.abs(audioRef.current.currentTime - seekTime) > 0.5) {
+      pendingSyncTimeRef.current = seekTime;
+      audioRef.current.currentTime = seekTime;
+      setCurrentTime(seekTime);
+    }
+    setTimeout(() => { isRemoteAction.current = false; }, 150);
+  }, []);
+
+  const handleRemoteChangeTrack = useCallback((syncTrack, syncState) => {
+    if (!syncTrack) return;
+    const isNewTrack = syncTrack.id !== currentTrack?.id;
+    const targetTime = syncState?.current_time ?? 0;
+    const shouldPlay = Boolean(syncState?.is_playing) && !isLocallyPausedRef.current;
+
+    if (isNewTrack) {
+      isRemoteAction.current = true;
+      setCurrentTrack(syncTrack);
+      addToRecents(syncTrack);
+      incrementPlayCount(syncTrack);
+      setCurrentPlaybackList(catalog);
+    }
+
+    if (audioRef.current) {
+      const targetUrl = resolveAudioUrl(syncTrack.src);
+      if (audioRef.current.src !== targetUrl) {
+        audioRef.current.src = syncTrack.src;
+      }
+      pendingSyncTimeRef.current = targetTime;
+      audioRef.current.currentTime = targetTime;
+      setCurrentTime(targetTime);
+
+      if (shouldPlay) {
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+          setShowAudioPrompt(false);
+          if (pendingSyncTimeRef.current !== null && audioRef.current && Math.abs(audioRef.current.currentTime - pendingSyncTimeRef.current) > 0.8) {
+            audioRef.current.currentTime = pendingSyncTimeRef.current;
+            setCurrentTime(pendingSyncTimeRef.current);
+            pendingSyncTimeRef.current = null;
+          }
+        }).catch(() => {
+          setShowAudioPrompt(true);
+        });
+      }
+    }
+    if (isNewTrack) {
       setTimeout(() => { isRemoteAction.current = false; }, 150);
     }
   }, [currentTrack?.id, catalog]);
@@ -526,31 +612,44 @@ export default function App() {
 
   const handleSyncState = useCallback((syncData) => {
     const state = syncData?.state;
-    if (state) {
-      if (state.track) {
-        setCurrentTrack(state.track);
-        if (audioRef.current && audioRef.current.src !== state.track.src) {
+    if (!state) return;
+    isRemoteAction.current = true;
+    isLocallyPausedRef.current = false;
+    setIsLocallyPaused(false);
+
+    if (state.track) {
+      setCurrentTrack(state.track);
+      if (audioRef.current) {
+        const targetUrl = resolveAudioUrl(state.track.src);
+        if (audioRef.current.src !== targetUrl) {
           audioRef.current.src = state.track.src;
         }
       }
-      if (state.current_time !== undefined && audioRef.current) {
-        audioRef.current.currentTime = state.current_time;
-        setCurrentTime(state.current_time);
-      }
-      if (state.is_playing) {
-        audioRef.current?.play().then(() => {
-          setIsPlaying(true);
-          setShowAudioPrompt(false);
-          setIsLocallyPaused(false);
-        }).catch(() => {
-          setShowAudioPrompt(true);
-        });
-      } else {
-        audioRef.current?.pause();
-        setIsPlaying(false);
-        setIsLocallyPaused(false);
-      }
     }
+    const targetTime = state.current_time ?? 0;
+    if (audioRef.current) {
+      pendingSyncTimeRef.current = targetTime;
+      audioRef.current.currentTime = targetTime;
+      setCurrentTime(targetTime);
+    }
+    if (state.is_playing) {
+      audioRef.current?.play().then(() => {
+        setIsPlaying(true);
+        setShowAudioPrompt(false);
+        if (pendingSyncTimeRef.current !== null && audioRef.current && Math.abs(audioRef.current.currentTime - pendingSyncTimeRef.current) > 0.8) {
+          audioRef.current.currentTime = pendingSyncTimeRef.current;
+          setCurrentTime(pendingSyncTimeRef.current);
+          pendingSyncTimeRef.current = null;
+        }
+      }).catch(() => {
+        setShowAudioPrompt(true);
+      });
+    } else {
+      audioRef.current?.pause();
+      setIsPlaying(false);
+      pendingSyncTimeRef.current = null;
+    }
+    setTimeout(() => { isRemoteAction.current = false; }, 150);
   }, []);
 
   const { sendAction, sendChatMessage, requestSync } = useRoomSocket({
@@ -648,7 +747,16 @@ export default function App() {
   useEffect(() => { try { localStorage.setItem("syncroom_theme_mode", themeMode); localStorage.setItem("syncroom_bg_color", bgColor); localStorage.setItem("syncroom_site_color", siteColor); localStorage.setItem("syncroom_text_color", textColor); } catch { /* ignore */ } }, [themeMode, bgColor, siteColor, textColor]);
 
   const handleTimeUpdate = () => { if (audioRef.current) { setCurrentTime(audioRef.current.currentTime); if (audioRef.current.duration) setDuration(audioRef.current.duration); } };
-  const handleLoadedMetadata = () => { if (audioRef.current && audioRef.current.duration) setDuration(audioRef.current.duration); };
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      if (audioRef.current.duration) setDuration(audioRef.current.duration);
+      if (pendingSyncTimeRef.current !== null) {
+        audioRef.current.currentTime = pendingSyncTimeRef.current;
+        setCurrentTime(pendingSyncTimeRef.current);
+        pendingSyncTimeRef.current = null;
+      }
+    }
+  };
 
   const playTrackNow = (track) => {
     setCurrentTrack(track); addToRecents(track); incrementPlayCount(track); recordGlobalPlay(track);
@@ -707,23 +815,26 @@ export default function App() {
     if (audio.paused) {
       if (isInRoom && !isUserHost) {
         // Automatically synchronize the listener with the host!
-        requestSync();
+        isLocallyPausedRef.current = false;
         setIsLocallyPaused(false);
+        requestSync();
         return;
       }
       if (!audio.src && currentTrack?.src) audio.src = currentTrack.src;
       audio.play().then(() => {
         setIsPlaying(true);
         setShowAudioPrompt(false);
+        isLocallyPausedRef.current = false;
         setIsLocallyPaused(false);
         if (!isRemoteAction.current) sendAction("PLAY", { current_time: audio.currentTime });
       }).catch(() => {});
     } else {
       if (isInRoom && !isUserHost) {
         // Listener pauses only for themselves, not the whole room
+        isLocallyPausedRef.current = true;
+        setIsLocallyPaused(true);
         audio.pause();
         setIsPlaying(false);
-        setIsLocallyPaused(true);
         return;
       }
       audio.pause();
