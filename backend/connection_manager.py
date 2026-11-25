@@ -370,9 +370,11 @@ class ConnectionManager:
             new_track = data.get("track")
             if req_id and isinstance(new_track, dict) and new_track.get("id"):
                 member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
-                sender_name = member["name"] if member else ""
+                sender_name = (member["name"] if member else "").lower()
+                sender_uid = member.get("user_id", "") if member else ""
                 for r in self.room_queue_requests.get(room_code, []):
-                    if r["id"] == req_id and r["requester"] == sender_name and r["status"] == "pending":
+                    is_owner = (sender_uid and r.get("requester_uid") == sender_uid) or (r.get("requester", "").lower() == sender_name)
+                    if r["id"] == req_id and is_owner and r["status"] == "pending":
                         r["track"] = new_track
                         break
                 await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": self.room_queue_requests.get(room_code, [])})
@@ -382,10 +384,14 @@ class ConnectionManager:
             req_id = data.get("request_id")
             if req_id:
                 member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
-                sender_name = member["name"] if member else ""
+                sender_name = (member["name"] if member else "").lower()
+                sender_uid = member.get("user_id", "") if member else ""
                 self.room_queue_requests[room_code] = [
                     r for r in self.room_queue_requests.get(room_code, [])
-                    if not (r["id"] == req_id and r["requester"] == sender_name)
+                    if not (
+                        r["id"] == req_id
+                        and ((sender_uid and r.get("requester_uid") == sender_uid) or (r.get("requester", "").lower() == sender_name))
+                    )
                 ]
                 await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": self.room_queue_requests.get(room_code, [])})
             return
