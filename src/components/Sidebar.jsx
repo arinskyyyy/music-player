@@ -146,7 +146,7 @@ export default function Sidebar({
       {isMobileOpen && <div onClick={() => setIsMobileOpen(false)} className="fixed inset-0 z-40 bg-black/80 md:hidden" />}
       <aside
         style={{ backgroundColor: surfaceBg, color: effectiveTextColor }}
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between p-5 transition-transform duration-200 md:static md:translate-x-0 overflow-x-hidden ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col justify-between p-4 sm:p-5 transition-transform duration-200 md:static md:translate-x-0 overflow-x-hidden ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
