@@ -38,6 +38,7 @@ export function useRoomSocket({
   onRoomNameUpdate,
   onRoomIdUpdate,
   onKickedUsersUpdate,
+  onQueueRequestsUpdate,
   onRoomFull,
   onRoomError,
   onSyncState,
@@ -65,6 +66,7 @@ export function useRoomSocket({
       onRoomNameUpdate,
       onRoomIdUpdate,
       onKickedUsersUpdate,
+      onQueueRequestsUpdate,
       onRoomFull,
       onRoomError,
       onSyncState,
@@ -101,6 +103,7 @@ export function useRoomSocket({
                 if (data.room_name) cbs.onRoomNameUpdate?.(data.room_name);
                 if (data.room_id) cbs.onRoomIdUpdate?.(data.room_id);
                 if (data.kicked_users) cbs.onKickedUsersUpdate?.(data.kicked_users);
+                if (data.queue_requests) cbs.onQueueRequestsUpdate?.(data.queue_requests);
                 if (data.chat_history) cbs.onChatHistory?.(data.chat_history);
                 if (data.my_username) localStorage.setItem("syncroom_active_username", data.my_username);
                 if (data.state) {
@@ -128,6 +131,9 @@ export function useRoomSocket({
                 break;
               case "CHAT_MESSAGE":
                 if (data.message) cbs.onChatMessage?.(data.message);
+                break;
+              case "QUEUE_REQUESTS_UPDATE":
+                if (data.queue_requests) cbs.onQueueRequestsUpdate?.(data.queue_requests);
                 break;
               case "ROOM_FULL":
                 cbs.onRoomFull?.(data.detail || "Room is full (max 20 listeners)");
