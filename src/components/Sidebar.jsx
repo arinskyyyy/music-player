@@ -230,10 +230,14 @@ export default function Sidebar({
         <div className="relative mt-4 rounded-2xl bg-neutral-900/40 p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-950 font-medium text-xs">
-                <span style={{ color: effectiveSiteColor }}>
-                  {user?.username ? user.username.charAt(0).toUpperCase() : "P"}
-                </span>
+              <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden bg-neutral-950 font-medium text-xs">
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.username || "User"} className="h-full w-full object-cover" />
+                ) : (
+                  <span style={{ color: effectiveSiteColor }}>
+                    {user?.username ? user.username.charAt(0).toUpperCase() : "P"}
+                  </span>
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium">{user?.username || "User"}</p>

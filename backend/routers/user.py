@@ -34,3 +34,12 @@ def update_stats(req: StatsRequest, current_user: User = Depends(get_current_use
     current_user.play_counts_json = json.dumps(req.play_counts)
     db.commit()
     return {"status": "ok"}
+
+class AvatarRequest(BaseModel):
+    avatar_url: str
+
+@router.post("/avatar")
+def update_avatar(req: AvatarRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    current_user.avatar_url = req.avatar_url
+    db.commit()
+    return {"status": "ok", "avatar_url": current_user.avatar_url}

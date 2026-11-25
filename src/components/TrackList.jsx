@@ -51,11 +51,13 @@ export default function TrackList({
   isUserHost = false,
   isLocallyPaused = false,
   chatWallpaper = null,
+  onUploadAvatar,
   effectiveSiteColor = "#ffffff",
   effectiveTextColor = "#ffffff",
   surfaceBg = "#000000",
 }) {
   const fileInputRef = useRef(null);
+  const avatarInputRef = useRef(null);
   const chatBottomRef = useRef(null);
   const [newRoomName, setNewRoomName] = useState("");
   const [joinCodeInput, setJoinCodeInput] = useState("");
@@ -824,24 +826,10 @@ export default function TrackList({
         )}
 
         {activeTab === "chat" && (
-          <div
-            style={
-              chatWallpaper
-                ? {
-                    backgroundImage: `linear-gradient(rgba(0,0,0,0.62), rgba(0,0,0,0.68)), url(${chatWallpaper})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    backgroundAttachment: "local",
-                  }
-                : { backgroundColor: surfaceBg }
-            }
-            className="flex flex-col h-full"
-          >
+          <div style={{ backgroundColor: surfaceBg }} className="flex flex-col h-full">
             <div
-              style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
-              className={`sticky top-0 z-30 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex items-center justify-between border-b border-neutral-800/80 shrink-0 ${
-                chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
-              }`}
+              style={{ backgroundColor: surfaceBg }}
+              className="sticky top-0 z-30 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex items-center justify-between border-b border-neutral-800/80 shrink-0"
             >
               <div>
                 <h2 className="text-lg font-medium sm:text-xl">Room Chat</h2>
@@ -851,9 +839,22 @@ export default function TrackList({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3 py-4 px-4 sm:px-6 md:px-8 w-full">
+            <div
+              style={
+                chatWallpaper
+                  ? {
+                      backgroundImage: `linear-gradient(rgba(0,0,0,0.18), rgba(0,0,0,0.24)), url(${chatWallpaper})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }
+                  : {}
+              }
+              className={`flex-1 overflow-y-auto mx-4 my-3 sm:mx-6 md:mx-8 rounded-2xl p-4 space-y-3 ${
+                !chatWallpaper ? "bg-neutral-900/20" : ""
+              }`}
+            >
               {chatMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full py-20 text-center opacity-50 text-xs">
+                <div className="flex flex-col items-center justify-center h-full py-20 text-center opacity-60 text-xs">
                   <p>No messages yet in this room.</p>
                   <p className="text-[10px] mt-1">Say hello to other listeners!</p>
                 </div>
@@ -870,17 +871,25 @@ export default function TrackList({
                   }
 
                   const isMe = user?.username && msg.sender.toLowerCase() === user.username.toLowerCase();
+                  const avatarSrc = msg.avatar_url || (isMe ? user?.avatar_url : "");
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                      <div className="flex items-center gap-1.5 text-[10px] opacity-70 mb-0.5 px-1">
-                        <span className="font-semibold">{msg.sender}</span>
-                        {msg.is_host && <span className="text-[8px] bg-amber-400/20 text-amber-300 px-1 rounded">HOST</span>}
+                      <div className={`flex items-center gap-1.5 text-[10px] opacity-85 mb-1 px-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full overflow-hidden bg-neutral-800 border border-neutral-700/60 text-[9px] font-semibold">
+                          {avatarSrc ? (
+                            <img src={avatarSrc} alt={msg.sender} className="h-full w-full object-cover" />
+                          ) : (
+                            <span style={{ color: effectiveSiteColor }}>{msg.sender.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <span className="font-semibold drop-shadow-sm">{msg.sender}</span>
+                        {msg.is_host && <span className="text-[8px] bg-amber-400/25 text-amber-300 px-1 rounded">HOST</span>}
                       </div>
                       <div
-                        className={`rounded-2xl px-3.5 py-2 text-xs max-w-md break-words ${
+                        className={`rounded-2xl px-3.5 py-2 text-xs max-w-md break-words shadow-sm ${
                           isMe
                             ? "bg-neutral-800/95 text-white rounded-tr-none"
-                            : "bg-neutral-900/90 text-neutral-200 rounded-tl-none border border-neutral-800/60"
+                            : "bg-neutral-900/95 text-neutral-200 rounded-tl-none border border-neutral-800/60"
                         }`}
                       >
                         {msg.text}
@@ -894,10 +903,8 @@ export default function TrackList({
 
             <form
               onSubmit={handleSendChat}
-              style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
-              className={`sticky bottom-0 z-30 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 w-full ${
-                chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
-              }`}
+              style={{ backgroundColor: surfaceBg }}
+              className="sticky bottom-0 z-30 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 w-full"
             >
               <input
                 type="text"
@@ -1005,15 +1012,46 @@ export default function TrackList({
               <h2 className="text-xl font-medium sm:text-2xl">Your Profile</h2>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-2xl bg-neutral-900/40 p-5 sm:p-6">
-              <div style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-medium">
-                {user?.username ? user.username.charAt(0).toUpperCase() : "P"}
-              </div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onUploadAvatar?.(file);
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                title="Upload profile picture"
+                style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                className="group relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full overflow-hidden text-2xl font-medium cursor-pointer"
+              >
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.username || "User"} className="h-full w-full object-cover" />
+                ) : (
+                  <span>{user?.username ? user.username.charAt(0).toUpperCase() : "P"}</span>
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  EDIT
+                </span>
+              </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="truncate text-lg font-medium">{user?.username || "User"}</h3>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-emerald-400/20 text-emerald-300">SYNCED ACCOUNT</span>
                 </div>
                 <p className="truncate text-xs opacity-60">{user?.email || ""}</p>
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="mt-1.5 text-[11px] font-medium opacity-70 hover:opacity-100 underline underline-offset-2 transition-opacity"
+                >
+                  Upload profile picture
+                </button>
               </div>
               <button type="button" onClick={onLogout} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn shrink-0 rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 hover:opacity-80">
                 LOGOUT

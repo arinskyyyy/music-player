@@ -214,8 +214,8 @@ export function useRoomSocket({
     }
   }, []);
 
-  const sendChatMessage = useCallback((text) => {
-    sendAction("SEND_CHAT", { text });
+  const sendChatMessage = useCallback((text, avatarUrl = "") => {
+    sendAction("SEND_CHAT", { text, avatar_url: avatarUrl });
   }, [sendAction]);
 
   const requestSync = useCallback(() => {

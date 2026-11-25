@@ -39,6 +39,7 @@ class UserResponse(BaseModel):
     username: str
     email: str
     auth_provider: Optional[str] = "local"
+    avatar_url: Optional[str] = None
     class Config: from_attributes = True
 
 class TokenResponse(BaseModel):

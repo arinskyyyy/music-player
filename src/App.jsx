@@ -283,21 +283,54 @@ export default function App() {
   useEffect(() => { if (!user?.token) return; fetch(`${API_BASE}/api/music/playlists`, { headers: { Authorization: `Bearer ${user.token}` } }).then(res => res.json()).then(data => setPlaylists(data.playlists || [])).catch(() => {}); }, [user?.token]);
 
   useEffect(() => {
-    if (!user?.token || user?.uid) return;
+    if (!user?.token || (user?.uid && user?.avatar_url !== undefined)) return;
     fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${user.token}` } })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((me) => {
-        if (me?.uid) {
+        if (me?.uid || me?.avatar_url !== undefined) {
           setUser((prev) => {
             if (!prev) return prev;
-            const updated = { ...prev, uid: me.uid };
+            const updated = { ...prev, uid: me.uid || prev.uid, avatar_url: me.avatar_url || "" };
             try { localStorage.setItem("syncroom_user", JSON.stringify(updated)); } catch { /* ignore */ }
             return updated;
           });
         }
       })
       .catch(() => {});
-  }, [user?.token, user?.uid]);
+  }, [user?.token, user?.uid, user?.avatar_url]);
+
+  const handleUploadAvatar = (file) => {
+    if (!file || !user?.token) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, avatar_url: dataUrl };
+          try { localStorage.setItem("syncroom_user", JSON.stringify(updated)); } catch { /* ignore */ }
+          return updated;
+        });
+        fetch(`${API_BASE}/api/user/avatar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+          body: JSON.stringify({ avatar_url: dataUrl }),
+        }).catch(() => {});
+      };
+      img.src = ev.target?.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handlePermitAudio = () => {
     try { localStorage.setItem("syncroom_audio_permitted", "true"); } catch { /* ignore */ }
@@ -619,7 +652,7 @@ export default function App() {
       if (res.ok) {
         if (isSignupMode) { setMode("login"); setPassword(""); setAuthError("Account created successfully. Please login."); setIsSubmitting(false); }
         else {
-          const data = await res.json(); const resolvedUser = { id: data.user?.id, uid: data.user?.uid, username: data.user?.username, email: data.user?.email, token: data.access_token, mode };
+          const data = await res.json(); const resolvedUser = { id: data.user?.id, uid: data.user?.uid, username: data.user?.username, email: data.user?.email, avatar_url: data.user?.avatar_url || "", token: data.access_token, mode };
           localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser)); localStorage.setItem("syncroom_active_username", resolvedUser.username);
           setUser(resolvedUser); setActiveTab("discover"); setActiveView("workspace"); setIsAuthenticated(true); setIsSubmitting(false);
         }
@@ -1019,8 +1052,8 @@ export default function App() {
                 playlists={playlists} onAddToPlaylist={handleAddToPlaylist} onDeletePlaylist={handleDeletePlaylist} 
                 onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist} recentTracks={recentTracks}
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}
-                chatMessages={chatMessages} onSendChatMessage={sendChatMessage} onResyncWithHost={requestSync} isUserHost={isUserHost}
-                isLocallyPaused={isLocallyPaused} chatWallpaper={chatWallpaper}
+                chatMessages={chatMessages} onSendChatMessage={(text) => sendChatMessage(text, user?.avatar_url || "")} onResyncWithHost={requestSync} isUserHost={isUserHost}
+                isLocallyPaused={isLocallyPaused} chatWallpaper={chatWallpaper} onUploadAvatar={handleUploadAvatar}
               />
             )}
           </div>

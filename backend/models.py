@@ -13,6 +13,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)
     auth_provider = Column(String(20), default="local")
     provider_id = Column(String(255), nullable=True, index=True)
+    avatar_url = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     # Persist user stats across devices/logins

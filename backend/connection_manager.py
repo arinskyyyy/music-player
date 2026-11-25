@@ -250,6 +250,7 @@ class ConnectionManager:
                     "id": f"chat-{now}-{id(sender)}",
                     "sender": sender_name,
                     "text": text,
+                    "avatar_url": data.get("avatar_url") or "",
                     "timestamp": now,
                     "is_system": False,
                     "is_host": is_host,
