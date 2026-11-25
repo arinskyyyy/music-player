@@ -47,6 +47,7 @@ const RANDOM_ROOM_NAMES = [
 const pickRandomRoomName = () => RANDOM_ROOM_NAMES[Math.floor(Math.random() * RANDOM_ROOM_NAMES.length)];
 
 const ROOM_LISTENERS = [{ id: 1, name: "NeonSamurai" }, { id: 2, name: "PixelWanderer" }, { id: 3, name: "CyberColumbina" }];
+const BG_COLOR_PRESETS = [{ name: "Pure Black", value: "#000000" }, { name: "Obsidian", value: "#121212" }, { name: "Midnight", value: "#0a0f1e" }, { name: "Deep Forest", value: "#071a12" }, { name: "Deep Plum", value: "#160b1c" }, { name: "Pure White", value: "#ffffff" }];
 const COLOR_PRESETS = [{ name: "White", value: "#ffffff" }, { name: "Cyan", value: "#22d3ee" }, { name: "Violet", value: "#a855f7" }, { name: "Amber", value: "#facc15" }, { name: "Emerald", value: "#4ade80" }, { name: "Rose", value: "#fb7185" }];
 const TEXT_COLOR_PRESETS = [{ name: "Pure White", value: "#ffffff" }, { name: "Soft Silver", value: "#d4d4d4" }, { name: "Ice Cyan", value: "#67e8f9" }, { name: "Lemon", value: "#fef08a" }, { name: "Mint", value: "#86efac" }, { name: "Blush", value: "#f9a8d4" }];
 
@@ -97,8 +98,17 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!user);
   const [activeView, setActiveView] = useState("workspace");
 
-  const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("syncroom_theme_mode") || "bw"; } catch { return "bw"; } });
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem("syncroom_theme_mode");
+      if (!saved || saved === "bw") return "black";
+      return saved;
+    } catch {
+      return "black";
+    }
+  });
   const [systemPrefersDark, setSystemPrefersDark] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)").matches : true);
+  const [bgColor, setBgColor] = useState(() => { try { return localStorage.getItem("syncroom_bg_color") || "#000000"; } catch { return "#000000"; } });
   const [siteColor, setSiteColor] = useState(() => { try { return localStorage.getItem("syncroom_site_color") || "#ffffff"; } catch { return "#ffffff"; } });
   const [textColor, setTextColor] = useState(() => { try { return localStorage.getItem("syncroom_text_color") || "#ffffff"; } catch { return "#ffffff"; } });
 
@@ -632,7 +642,7 @@ export default function App() {
   useEffect(() => { if (!window.matchMedia) return; const mq = window.matchMedia("(prefers-color-scheme: dark)"); const handleChange = (e) => setSystemPrefersDark(e.matches); mq.addEventListener("change", handleChange); return () => mq.removeEventListener("change", handleChange); }, []);
   useEffect(() => { PIXEL_MEDIA.forEach((item) => { if (item.src !== selectedMedia.src) { const img = new Image(); img.src = item.src; } }); }, [selectedMedia.src]);
   useEffect(() => { if (audioRef.current) { audioRef.current.volume = volume / 100; audioRef.current.muted = isMuted; } try { localStorage.setItem("syncroom_volume", String(volume)); } catch { /* ignore */ } }, [volume, isMuted]);
-  useEffect(() => { try { localStorage.setItem("syncroom_theme_mode", themeMode); localStorage.setItem("syncroom_site_color", siteColor); localStorage.setItem("syncroom_text_color", textColor); } catch { /* ignore */ } }, [themeMode, siteColor, textColor]);
+  useEffect(() => { try { localStorage.setItem("syncroom_theme_mode", themeMode); localStorage.setItem("syncroom_bg_color", bgColor); localStorage.setItem("syncroom_site_color", siteColor); localStorage.setItem("syncroom_text_color", textColor); } catch { /* ignore */ } }, [themeMode, bgColor, siteColor, textColor]);
 
   const handleTimeUpdate = () => { if (audioRef.current) { setCurrentTime(audioRef.current.currentTime); if (audioRef.current.duration) setDuration(audioRef.current.duration); } };
   const handleLoadedMetadata = () => { if (audioRef.current && audioRef.current.duration) setDuration(audioRef.current.duration); };
@@ -864,10 +874,10 @@ export default function App() {
   }
 
   const isSignup = mode === "signup";
-  const isSystemLight = themeMode === "system" && !systemPrefersDark;
-  const effectiveSiteColor = themeMode === "bw" ? (isSystemLight ? "#000000" : "#ffffff") : siteColor;
-  const effectiveTextColor = themeMode === "bw" ? (isSystemLight ? "#000000" : "#ffffff") : textColor;
-  const surfaceBg = isSystemLight ? "#ffffff" : "#000000";
+  const isSystemLight = themeMode === "white" || (themeMode === "system" && !systemPrefersDark);
+  const surfaceBg = themeMode === "custom" ? bgColor : (isSystemLight ? "#ffffff" : "#000000");
+  const effectiveSiteColor = themeMode === "custom" ? siteColor : (isSystemLight ? "#000000" : "#ffffff");
+  const effectiveTextColor = themeMode === "custom" ? textColor : (isSystemLight ? "#000000" : "#ffffff");
   const globalThemeStyle = { backgroundColor: surfaceBg, color: effectiveTextColor, "--site-accent": effectiveSiteColor, "--site-text": effectiveTextColor };
 
   return (
@@ -1100,7 +1110,7 @@ export default function App() {
                   <div className="flex items-center justify-between pb-2 border-b border-neutral-800/70">
                     <div><p className="text-[10px] opacity-50">ACCOUNT & PREFERENCES</p><h2 className="text-xl font-medium sm:text-2xl">SETTINGS</h2></div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => { setThemeMode("bw"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">RESET THEME</button>
+                      <button type="button" onClick={() => { setThemeMode("black"); setBgColor("#000000"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">RESET THEME</button>
                       <button type="button" onClick={() => setActiveView("workspace")} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">BACK TO PLAYER</button>
                     </div>
                   </div>
@@ -1271,35 +1281,51 @@ export default function App() {
                   <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-5">
                     <div>
                       <h3 className="text-sm font-medium">Appearance & Theme</h3>
-                      <p className="text-[11px] opacity-55">Customize site colors and theme mode.</p>
+                      <p className="text-[11px] opacity-55">Choose Black, White, System Default, or Custom mode.</p>
                     </div>
                   <div className="space-y-2.5">
                     <p className="text-xs font-medium opacity-70">BASE THEME MODE</p>
                     <div className="flex flex-wrap gap-2.5">
-                      <button type="button" onClick={() => setThemeMode("bw")} style={themeMode === "bw" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "bw" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>Black and White</button>
-                      <button type="button" onClick={() => setThemeMode("system")} style={themeMode === "system" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "system" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>Use System ({systemPrefersDark ? "Dark" : "Light"})</button>
+                      <button type="button" onClick={() => setThemeMode("black")} style={themeMode === "black" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "black" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>Black Mode</button>
+                      <button type="button" onClick={() => setThemeMode("white")} style={themeMode === "white" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "white" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>White Mode</button>
+                      <button type="button" onClick={() => setThemeMode("system")} style={themeMode === "system" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "system" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>System Default ({systemPrefersDark ? "Dark" : "Light"})</button>
+                      <button type="button" onClick={() => setThemeMode("custom")} style={themeMode === "custom" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 ${themeMode !== "custom" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}>Custom Mode</button>
                     </div>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between"><p className="text-xs font-medium opacity-70">WEBSITE ACCENT COLOR</p><span className="text-xs opacity-50">{effectiveSiteColor}</span></div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {COLOR_PRESETS.map((preset) => (
-                        <button key={preset.value} type="button" onClick={() => { setThemeMode("system"); setSiteColor(preset.value); }} style={{ backgroundColor: preset.value, color: "#000000" }} className="pixel-btn rounded-xl px-3 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">{preset.name}</button>
-                      ))}
-                      <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Custom</span><input type="color" value={siteColor} onChange={(e) => { setThemeMode("system"); setSiteColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
-                    </div>
-                  </div>
+                  {themeMode === "custom" && (
+                    <>
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between"><p className="text-xs font-medium opacity-70">WEBSITE BACKGROUND COLOR</p><span className="text-xs opacity-50">{bgColor}</span></div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {BG_COLOR_PRESETS.map((preset) => (
+                            <button key={preset.value} type="button" onClick={() => { setThemeMode("custom"); setBgColor(preset.value); }} style={{ backgroundColor: preset.value, color: preset.value === "#ffffff" ? "#000000" : "#ffffff" }} className="pixel-btn rounded-xl border border-neutral-700/60 px-3 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">{preset.name}</button>
+                          ))}
+                          <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Bg Custom</span><input type="color" value={bgColor} onChange={(e) => { setThemeMode("custom"); setBgColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
+                        </div>
+                      </div>
 
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between"><p className="text-xs font-medium opacity-70">TEXT COLOR THEME (SEPARATE)</p><span className="text-xs opacity-50">{effectiveTextColor}</span></div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {TEXT_COLOR_PRESETS.map((preset) => (
-                        <button key={preset.value} type="button" onClick={() => { setThemeMode("system"); setTextColor(preset.value); }} style={{ backgroundColor: surfaceBg, color: preset.value }} className="pixel-btn rounded-xl bg-neutral-900/60 hover:bg-neutral-800 px-3 py-1.5 text-xs font-medium transition-colors duration-200">{preset.name}</button>
-                      ))}
-                      <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Text Custom</span><input type="color" value={textColor} onChange={(e) => { setThemeMode("system"); setTextColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
-                    </div>
-                  </div>
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between"><p className="text-xs font-medium opacity-70">WEBSITE ACCENT COLOR</p><span className="text-xs opacity-50">{effectiveSiteColor}</span></div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {COLOR_PRESETS.map((preset) => (
+                            <button key={preset.value} type="button" onClick={() => { setThemeMode("custom"); setSiteColor(preset.value); }} style={{ backgroundColor: preset.value, color: "#000000" }} className="pixel-btn rounded-xl px-3 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">{preset.name}</button>
+                          ))}
+                          <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Custom</span><input type="color" value={siteColor} onChange={(e) => { setThemeMode("custom"); setSiteColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between"><p className="text-xs font-medium opacity-70">TEXT COLOR THEME (SEPARATE)</p><span className="text-xs opacity-50">{effectiveTextColor}</span></div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {TEXT_COLOR_PRESETS.map((preset) => (
+                            <button key={preset.value} type="button" onClick={() => { setThemeMode("custom"); setTextColor(preset.value); }} style={{ backgroundColor: surfaceBg, color: preset.value }} className="pixel-btn rounded-xl bg-neutral-900/60 hover:bg-neutral-800 px-3 py-1.5 text-xs font-medium transition-colors duration-200">{preset.name}</button>
+                          ))}
+                          <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Text Custom</span><input type="color" value={textColor} onChange={(e) => { setThemeMode("custom"); setTextColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   </div>
                 </div>
               </main>
