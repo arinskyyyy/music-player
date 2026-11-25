@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-function getWebSocketUrl(roomCode, username, roomName = "", isCreate = false) {
-  const query = `username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName || "")}&is_create=${isCreate ? "true" : "false"}`;
+function getWebSocketUrl(roomCode, username, roomName = "", isCreate = false, userId = "", roomId = "") {
+  const query = `username=${encodeURIComponent(username)}&room_name=${encodeURIComponent(roomName || "")}&is_create=${isCreate ? "true" : "false"}&user_id=${encodeURIComponent(userId || "")}&room_id=${encodeURIComponent(roomId || "")}`;
   try {
     const parsed = new URL(API_BASE);
     const wsProto = parsed.protocol === "https:" ? "wss:" : "ws:";
@@ -19,7 +19,9 @@ function getWebSocketUrl(roomCode, username, roomName = "", isCreate = false) {
 export function useRoomSocket({
   roomCode = "",
   username = "Listener",
+  userId = "",
   roomName = "",
+  roomId = "",
   isCreate = false,
   isConnected: externalIsConnected,
   onSyncPlay,
@@ -34,6 +36,8 @@ export function useRoomSocket({
   onChatMessage,
   onChatHistory,
   onRoomNameUpdate,
+  onRoomIdUpdate,
+  onKickedUsersUpdate,
   onRoomFull,
   onRoomError,
   onSyncState,
@@ -59,6 +63,8 @@ export function useRoomSocket({
       onChatMessage,
       onChatHistory,
       onRoomNameUpdate,
+      onRoomIdUpdate,
+      onKickedUsersUpdate,
       onRoomFull,
       onRoomError,
       onSyncState,
@@ -71,7 +77,7 @@ export function useRoomSocket({
 
     const connect = () => {
       if (!isMounted) return;
-      const wsUrl = getWebSocketUrl(roomCode, username, roomName, isCreate);
+      const wsUrl = getWebSocketUrl(roomCode, username, roomName, isCreate, userId, roomId);
 
       try {
         const ws = new WebSocket(wsUrl);
@@ -93,6 +99,8 @@ export function useRoomSocket({
                 if (data.host) cbs.onHostUpdate?.(data.host);
                 if (data.listeners) cbs.onListenersUpdate?.(data.listeners);
                 if (data.room_name) cbs.onRoomNameUpdate?.(data.room_name);
+                if (data.room_id) cbs.onRoomIdUpdate?.(data.room_id);
+                if (data.kicked_users) cbs.onKickedUsersUpdate?.(data.kicked_users);
                 if (data.chat_history) cbs.onChatHistory?.(data.chat_history);
                 if (data.my_username) localStorage.setItem("syncroom_active_username", data.my_username);
                 if (data.state) {
@@ -108,11 +116,15 @@ export function useRoomSocket({
                 if (data.host) cbs.onHostUpdate?.(data.host);
                 if (data.listeners) cbs.onListenersUpdate?.(data.listeners);
                 if (data.room_name) cbs.onRoomNameUpdate?.(data.room_name);
+                if (data.room_id) cbs.onRoomIdUpdate?.(data.room_id);
+                if (data.kicked_users) cbs.onKickedUsersUpdate?.(data.kicked_users);
                 break;
               case "LISTENERS_UPDATE":
                 if (data.host) cbs.onHostUpdate?.(data.host);
                 if (data.listeners) cbs.onListenersUpdate?.(data.listeners);
                 if (data.room_name) cbs.onRoomNameUpdate?.(data.room_name);
+                if (data.room_id) cbs.onRoomIdUpdate?.(data.room_id);
+                if (data.kicked_users) cbs.onKickedUsersUpdate?.(data.kicked_users);
                 break;
               case "CHAT_MESSAGE":
                 if (data.message) cbs.onChatMessage?.(data.message);
@@ -191,7 +203,7 @@ export function useRoomSocket({
         socketRef.current.close();
       }
     };
-  }, [roomCode, username, roomName, isCreate, externalIsConnected]);
+  }, [roomCode, username, userId, roomName, roomId, isCreate, externalIsConnected]);
 
   const sendAction = useCallback((action, payload = {}) => {
     const msg = JSON.stringify({ action, payload });

@@ -19,6 +19,7 @@ class RegisterRequest(BaseModel):
     username: str
     email: str
     password: str
+    user_uid: Optional[str] = None
 
 class LoginRequest(BaseModel):
     identifier: str
@@ -34,6 +35,7 @@ class ResetPasswordRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
+    uid: Optional[str] = None
     username: str
     email: str
     auth_provider: Optional[str] = "local"
@@ -60,13 +62,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
+def generate_unique_user_uid(db: Session) -> str:
+    while True:
+        uid = f"USR-{secrets.token_hex(4).upper()}"
+        if not db.query(User).filter(User.uid == uid).first():
+            return uid
+
 @router.post("/register", response_model=TokenResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter((User.username == req.username) | (User.email == req.email)).first():
-        raise HTTPException(status_code=400, detail="Username or email is already registered")
-    new_user = User(username=req.username.strip(), email=req.email.strip().lower(), hashed_password=get_password_hash(req.password))
+    clean_username = req.username.strip()
+    clean_email = req.email.strip().lower()
+    if req.user_uid and req.user_uid.strip():
+        clean_uid = req.user_uid.strip().upper()
+        if db.query(User).filter(User.uid == clean_uid).first():
+            raise HTTPException(status_code=400, detail="An account already exists with the same UserID.")
+    else:
+        clean_uid = generate_unique_user_uid(db)
+
+    if db.query(User).filter(func.lower(User.username) == clean_username.lower()).first():
+        raise HTTPException(status_code=400, detail="An account already exists with this username.")
+    if db.query(User).filter(User.email == clean_email).first():
+        raise HTTPException(status_code=400, detail="An account already exists with this email.")
+
+    new_user = User(uid=clean_uid, username=clean_username, email=clean_email, hashed_password=get_password_hash(req.password))
     db.add(new_user); db.commit(); db.refresh(new_user)
-    token = create_access_token({"sub": str(new_user.id), "username": new_user.username})
+    token = create_access_token({"sub": str(new_user.id), "uid": new_user.uid, "username": new_user.username})
     return TokenResponse(access_token=token, token_type="bearer", user=UserResponse.model_validate(new_user))
 
 @router.post("/login", response_model=TokenResponse)

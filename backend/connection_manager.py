@@ -26,6 +26,8 @@ class ConnectionManager:
         self.room_members: Dict[str, List[Dict[str, Any]]] = {}
         self.room_hosts: Dict[str, str] = {}
         self.room_names: Dict[str, str] = {}
+        self.room_ids: Dict[str, str] = {}
+        self.room_kicked_users: Dict[str, List[Dict[str, str]]] = {}
         self.room_playback_state: Dict[str, Dict[str, Any]] = {}
         self.room_chats: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -44,13 +46,48 @@ class ConnectionManager:
             if code not in self.active_rooms:
                 return code
 
-    async def connect(self, websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = "", is_create: bool = False):
-        # Enforce unique room code when creating a new room
-        if is_create and room_code in self.active_rooms:
+    def generate_unique_room_id(self) -> str:
+        chars = "0123456789ABCDEF"
+        existing_ids = set(self.room_ids.values())
+        while True:
+            rid = "RM-" + "".join(random.choice(chars) for _ in range(8))
+            if rid not in existing_ids:
+                return rid
+
+    async def connect(self, websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = "", is_create: bool = False, user_id: str = "", room_id: str = ""):
+        # Enforce unique room code & unique RoomID when creating a new room
+        if is_create:
+            if room_code in self.active_rooms:
+                await websocket.accept()
+                await websocket.send_json({
+                    "type": "ROOM_ERROR",
+                    "detail": f"Room code #{room_code} is already taken."
+                })
+                await websocket.close(code=1008)
+                return
+            if room_id and room_id.strip():
+                clean_rid = room_id.strip().upper()
+                if clean_rid in self.room_ids.values():
+                    await websocket.accept()
+                    await websocket.send_json({
+                        "type": "ROOM_ERROR",
+                        "detail": f"A room already exists with the same RoomID ({clean_rid})."
+                    })
+                    await websocket.close(code=1008)
+                    return
+
+        # Enforce kick/ban list: kicked users cannot rejoin unless allowed by host
+        kicked_list = self.room_kicked_users.get(room_code, [])
+        is_kicked = any(
+            (user_id and k.get("user_id") and k.get("user_id") == user_id)
+            or (k.get("username", "").lower() == username.strip().lower())
+            for k in kicked_list
+        )
+        if is_kicked:
             await websocket.accept()
             await websocket.send_json({
                 "type": "ROOM_ERROR",
-                "detail": f"Room code #{room_code} is already active. Please choose a different code or leave it blank."
+                "detail": "You were kicked from this room. You can only rejoin if the host allows you."
             })
             await websocket.close(code=1008)
             return
@@ -73,6 +110,8 @@ class ConnectionManager:
             self.room_members[room_code] = []
             self.room_hosts[room_code] = username
             self.room_names[room_code] = room_name.strip() if room_name and room_name.strip() else random.choice(RANDOM_ROOM_NAMES)
+            self.room_ids[room_code] = room_id.strip().upper() if (room_id and room_id.strip()) else self.generate_unique_room_id()
+            self.room_kicked_users[room_code] = []
             self.room_chats[room_code] = []
         elif room_name and room_name.strip() and not self.room_names.get(room_code):
             self.room_names[room_code] = room_name.strip()
@@ -87,7 +126,7 @@ class ConnectionManager:
         if not self.room_hosts.get(room_code):
             self.room_hosts[room_code] = username
         is_host = (self.room_hosts.get(room_code) == username)
-        member_info = {"id": id(websocket), "name": username, "is_host": is_host}
+        member_info = {"id": id(websocket), "name": username, "user_id": user_id, "is_host": is_host}
         self.active_rooms[room_code].append(websocket)
         self.room_members[room_code].append(member_info)
 
@@ -112,10 +151,12 @@ class ConnectionManager:
         await websocket.send_json({
             "type": "ROOM_STATE_INIT",
             "room_code": room_code,
+            "room_id": self.room_ids.get(room_code, ""),
             "room_name": self.room_names.get(room_code, "Stereo Lounge"),
             "state": {**state, "current_time": computed_time},
             "host": self.room_hosts.get(room_code),
             "listeners": self.room_members[room_code],
+            "kicked_users": self.room_kicked_users.get(room_code, []),
             "server_time": now,
             "my_username": username,
             "chat_history": self.room_chats.get(room_code, []),
@@ -124,9 +165,11 @@ class ConnectionManager:
             room_code,
             {
                 "type": "LISTENERS_UPDATE",
+                "room_id": self.room_ids.get(room_code, ""),
                 "room_name": self.room_names.get(room_code, "Stereo Lounge"),
                 "host": self.room_hosts.get(room_code),
                 "listeners": self.room_members[room_code],
+                "kicked_users": self.room_kicked_users.get(room_code, []),
             },
             exclude=websocket,
         )
@@ -147,6 +190,10 @@ class ConnectionManager:
                     del self.room_hosts[room_code]
                 if room_code in self.room_names:
                     del self.room_names[room_code]
+                if room_code in self.room_ids:
+                    del self.room_ids[room_code]
+                if room_code in self.room_kicked_users:
+                    del self.room_kicked_users[room_code]
                 if room_code in self.room_playback_state:
                     del self.room_playback_state[room_code]
                 if room_code in self.room_chats:
@@ -232,7 +279,7 @@ class ConnectionManager:
             return
 
         # Host-only controls: non-hosts cannot affect playback of the room
-        HOST_ONLY_ACTIONS = {"PLAY", "PAUSE", "SEEK", "CHANGE_TRACK", "CHANGE_WALLPAPER", "GIVE_LEADERSHIP", "KICK_USER"}
+        HOST_ONLY_ACTIONS = {"PLAY", "PAUSE", "SEEK", "CHANGE_TRACK", "CHANGE_WALLPAPER", "GIVE_LEADERSHIP", "KICK_USER", "ALLOW_USER"}
         
         if action in HOST_ONLY_ACTIONS:
             member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
@@ -294,23 +341,60 @@ class ConnectionManager:
             if target_name and room_code in self.room_members:
                 target_member = next((m for m in self.room_members[room_code] if m["name"] == target_name), None)
                 if target_member:
+                    kicked_list = self.room_kicked_users.setdefault(room_code, [])
+                    if not any(k.get("username", "").lower() == target_member["name"].lower() for k in kicked_list):
+                        kicked_list.append({
+                            "username": target_member["name"],
+                            "user_id": target_member.get("user_id", ""),
+                        })
                     target_ws = next((ws for ws in self.active_rooms.get(room_code, []) if id(ws) == target_member["id"]), None)
                     if target_ws:
                         try:
-                            await target_ws.send_json({"type": "KICKED", "reason": f"Kicked from {room_code} by room host"})
+                            await target_ws.send_json({"type": "KICKED", "reason": f"Kicked from {room_code} by room host. You cannot rejoin unless allowed by the host."})
                             await target_ws.close()
                             self.disconnect(target_ws, room_code)
                             await self.broadcast(
                                 room_code,
                                 {
                                     "type": "LISTENERS_UPDATE",
+                                    "room_id": self.room_ids.get(room_code, ""),
                                     "room_name": self.room_names.get(room_code, "Stereo Lounge"),
                                     "host": self.room_hosts.get(room_code),
                                     "listeners": self.room_members[room_code],
+                                    "kicked_users": self.room_kicked_users.get(room_code, []),
                                 },
                             )
                         except Exception:
                             pass
+                return
+        elif action == "ALLOW_USER":
+            target_name = (data.get("target_name") or "").strip()
+            if target_name and room_code in self.room_kicked_users:
+                self.room_kicked_users[room_code] = [
+                    k for k in self.room_kicked_users[room_code]
+                    if k.get("username", "").lower() != target_name.lower()
+                ]
+                allow_msg = {
+                    "id": f"sys-{now}-allow",
+                    "sender": "SYSTEM",
+                    "text": f"{target_name} was allowed back into the room by the host.",
+                    "timestamp": now,
+                    "is_system": True,
+                }
+                if room_code in self.room_chats:
+                    self.room_chats[room_code].append(allow_msg)
+                await self.broadcast(
+                    room_code,
+                    {
+                        "type": "LISTENERS_UPDATE",
+                        "room_id": self.room_ids.get(room_code, ""),
+                        "room_name": self.room_names.get(room_code, "Stereo Lounge"),
+                        "host": self.room_hosts.get(room_code),
+                        "listeners": self.room_members.get(room_code, []),
+                        "kicked_users": self.room_kicked_users.get(room_code, []),
+                    },
+                )
+                await self.broadcast(room_code, {"type": "CHAT_MESSAGE", "message": allow_msg})
                 return
         elif action == "CHANGE_WALLPAPER":
             wallpaper = data.get("wallpaper")

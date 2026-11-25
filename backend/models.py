@@ -7,6 +7,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    uid = Column(String(32), unique=True, index=True, nullable=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(120), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=True)
@@ -25,6 +26,7 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id = Column(Integer, primary_key=True, index=True)
+    room_uid = Column(String(32), unique=True, index=True, nullable=True)
     code = Column(String(32), unique=True, index=True, nullable=False)
     name = Column(String(100), default="Pixel Stereo Lounge")
     host_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)

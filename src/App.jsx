@@ -76,7 +76,9 @@ function PixelGearIcon() {
 export default function App() {
   const [selectedMedia] = useState(() => getNonRepeatingMedia(PIXEL_MEDIA));
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [isAudioLocked, setIsAudioLocked] = useState(false);
+  const [showAudioPrompt, setShowAudioPrompt] = useState(() => {
+    try { return localStorage.getItem("syncroom_audio_permitted") !== "true"; } catch { return true; }
+  });
 
   const [user, setUser] = useState(() => {
     try {
@@ -126,7 +128,9 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState("discover");
   const [roomCode, setRoomCode] = useState(() => generateRoomCode());
+  const [roomId, setRoomId] = useState("");
   const [roomName, setRoomName] = useState("");
+  const [kickedUsers, setKickedUsers] = useState([]);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [chatWallpaper, setChatWallpaper] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
@@ -278,14 +282,31 @@ export default function App() {
   useEffect(() => { const token = user?.token; if (!token) return; let cancelled = false; fetch(`${API_BASE}/api/music/favorites`, { headers: { Authorization: `Bearer ${token}` } }).then((res) => res.ok ? res.json() : Promise.reject()).then((data) => { if (cancelled) return; setFavorites(data.favorites || []); }).catch(() => {}); return () => { cancelled = true; }; }, [user?.token, user?.id]);
   useEffect(() => { if (!user?.token) return; fetch(`${API_BASE}/api/music/playlists`, { headers: { Authorization: `Bearer ${user.token}` } }).then(res => res.json()).then(data => setPlaylists(data.playlists || [])).catch(() => {}); }, [user?.token]);
 
-  const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setIsAudioLocked(false); }).catch(() => { setIsAudioLocked(true); }); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
+  const handlePermitAudio = () => {
+    try { localStorage.setItem("syncroom_audio_permitted", "true"); } catch { /* ignore */ }
+    setShowAudioPrompt(false);
+    const audio = audioRef.current;
+    if (audio && audio.paused) {
+      const prevSrc = audio.src;
+      if (!prevSrc && currentTrack?.src) audio.src = currentTrack.src;
+      audio.muted = true;
+      audio.play().then(() => {
+        audio.pause();
+        audio.muted = isMuted;
+      }).catch(() => {
+        audio.muted = isMuted;
+      });
+    }
+  };
+
+  const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setShowAudioPrompt(false); }).catch(() => {}); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   const handleRemotePause = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.pause(); setIsPlaying(false); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   const handleRemoteSeek = useCallback((seekTime) => { isRemoteAction.current = true; if (audioRef.current && Math.abs(audioRef.current.currentTime - seekTime) > 0.5) { audioRef.current.currentTime = seekTime; setCurrentTime(seekTime); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   
   const handleRemoteChangeTrack = useCallback((syncTrack) => {
     if (syncTrack && syncTrack.id !== currentTrack?.id) {
       isRemoteAction.current = true; setCurrentTrack(syncTrack); addToRecents(syncTrack); incrementPlayCount(syncTrack); setCurrentPlaybackList(catalog); 
-      if (audioRef.current) { audioRef.current.src = syncTrack.src; audioRef.current.currentTime = 0; audioRef.current.play().then(() => { setIsPlaying(true); setIsAudioLocked(false); }).catch(() => { setIsAudioLocked(true); }); }
+      if (audioRef.current) { audioRef.current.src = syncTrack.src; audioRef.current.currentTime = 0; }
       setTimeout(() => { isRemoteAction.current = false; }, 150);
     }
   }, [currentTrack?.id, catalog]);
@@ -293,7 +314,7 @@ export default function App() {
   const handleRemoteQueue = useCallback((syncQueue) => { if (Array.isArray(syncQueue)) setQueue(syncQueue); }, []);
   const handleRemoteListeners = useCallback((updatedListeners) => { if (Array.isArray(updatedListeners)) setListeners(updatedListeners); }, []);
   const handleHostUpdate = useCallback((newHost) => { if (newHost) setCurrentHost(newHost); }, []);
-  const handleKicked = useCallback((reason) => { alert(reason || "You were removed from the room by the host."); setIsInRoom(false); setIsCreatingRoom(false); setChatWallpaper(null); setRoomCode("LOBBY"); setActiveTab("rooms"); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); } }, []);
+  const handleKicked = useCallback((reason) => { alert(reason || "You were removed from the room by the host."); setIsInRoom(false); setIsCreatingRoom(false); setChatWallpaper(null); setKickedUsers([]); setRoomId(""); setRoomCode("LOBBY"); setActiveTab("rooms"); if (audioRef.current) { audioRef.current.pause(); setIsPlaying(false); } }, []);
   const handleWallpaperUpdate = useCallback((newWallpaper) => {
     if (newWallpaper) {
       setWallpaper(newWallpaper);
@@ -324,11 +345,21 @@ export default function App() {
     if (name) setRoomName(name);
   }, []);
 
+  const handleRoomIdUpdate = useCallback((rid) => {
+    if (rid) setRoomId(rid);
+  }, []);
+
+  const handleKickedUsersUpdate = useCallback((list) => {
+    if (Array.isArray(list)) setKickedUsers(list);
+  }, []);
+
   const handleRoomFull = useCallback((detail) => {
     alert(detail || "Room has reached its maximum capacity of 20 users.");
     setIsInRoom(false);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
+    setKickedUsers([]);
+    setRoomId("");
     setRoomCode("LOBBY");
     setActiveTab("rooms");
   }, []);
@@ -338,6 +369,8 @@ export default function App() {
     setIsInRoom(false);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
+    setKickedUsers([]);
+    setRoomId("");
     setRoomCode(generateRoomCode());
     setActiveTab("rooms");
   }, []);
@@ -358,9 +391,9 @@ export default function App() {
       if (state.is_playing) {
         audioRef.current?.play().then(() => {
           setIsPlaying(true);
-          setIsAudioLocked(false);
+          setShowAudioPrompt(false);
           setIsLocallyPaused(false);
-        }).catch(() => setIsAudioLocked(true));
+        }).catch(() => {});
       } else {
         audioRef.current?.pause();
         setIsPlaying(false);
@@ -372,7 +405,9 @@ export default function App() {
   const { sendAction, sendChatMessage, requestSync } = useRoomSocket({
     roomCode: isAuthenticated && isInRoom ? roomCode : "",
     username: activeUsername,
+    userId: user?.uid || "",
     roomName: roomName,
+    roomId: roomId,
     isCreate: isCreatingRoom,
     onSyncPlay: handleRemotePlay,
     onSyncPause: handleRemotePause,
@@ -386,6 +421,8 @@ export default function App() {
     onChatMessage: handleChatMessage,
     onChatHistory: handleChatHistory,
     onRoomNameUpdate: handleRoomNameUpdate,
+    onRoomIdUpdate: handleRoomIdUpdate,
+    onKickedUsersUpdate: handleKickedUsersUpdate,
     onRoomFull: handleRoomFull,
     onRoomError: handleRoomError,
     onSyncState: handleSyncState,
@@ -396,7 +433,9 @@ export default function App() {
       sendAction("PAUSE", { current_time: audioRef.current.currentTime });
     }
     setRoomCode(generateRoomCode());
+    setRoomId("");
     setRoomName("");
+    setKickedUsers([]);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
     setChatMessages([]);
@@ -408,28 +447,34 @@ export default function App() {
     const normalized = normalizeRoomCode(code);
     if (!normalized) return;
     setRoomCode(normalized);
+    setRoomId("");
     setRoomName("");
+    setKickedUsers([]);
     setIsCreatingRoom(false);
     setChatWallpaper(null);
     setChatMessages([]);
     setIsInRoom(true);
   };
 
-  const handleCreateRoom = async (code, name) => {
+  const handleCreateRoom = async (code, name, customRoomId = "") => {
     let targetCode = normalizeRoomCode(code);
-    if (!targetCode) {
+    let targetRoomId = (customRoomId || "").trim().toUpperCase();
+    if (!targetCode || !targetRoomId) {
       try {
         const res = await fetch(`${API_BASE}/api/rooms/generate`);
         if (res.ok) {
           const data = await res.json();
-          if (data?.room_code) targetCode = data.room_code;
+          if (!targetCode && data?.room_code) targetCode = data.room_code;
+          if (!targetRoomId && data?.room_id) targetRoomId = data.room_id;
         }
       } catch { /* fallback below */ }
       if (!targetCode) targetCode = generateRoomCode();
     }
     const targetName = (name && name.trim()) ? name.trim() : pickRandomRoomName();
     setRoomCode(targetCode);
+    setRoomId(targetRoomId);
     setRoomName(targetName);
+    setKickedUsers([]);
     setIsCreatingRoom(true);
     setChatWallpaper(null);
     setCurrentHost(activeUsername);
@@ -439,6 +484,7 @@ export default function App() {
 
   const handleGiveLeadership = (targetName) => sendAction("GIVE_LEADERSHIP", { target_name: targetName });
   const handleKickUser = (targetName) => sendAction("KICK_USER", { target_name: targetName });
+  const handleAllowUser = (targetName) => sendAction("ALLOW_USER", { target_name: targetName });
   const handleChangeWallpaper = (newWp) => {
     setWallpaper(newWp);
     setChatWallpaper(newWp);
@@ -457,7 +503,7 @@ export default function App() {
     setCurrentTrack(track); addToRecents(track); incrementPlayCount(track); recordGlobalPlay(track);
     if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("CHANGE_TRACK", { track, current_time: 0 });
     const audio = audioRef.current;
-    if (audio) { audio.src = track.src; audio.currentTime = 0; audio.play().then(() => { setIsPlaying(true); setIsLocallyPaused(false); }).catch(() => setIsAudioLocked(true)); }
+    if (audio) { audio.src = track.src; audio.currentTime = 0; audio.play().then(() => { setIsPlaying(true); setIsLocallyPaused(false); setShowAudioPrompt(false); }).catch(() => {}); }
   };
 
   const handleNext = () => {
@@ -501,7 +547,7 @@ export default function App() {
     }
   };
 
-  const handleAudioEnded = () => { if (isLooping) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => setIsAudioLocked(true)); if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("PLAY", { current_time: 0 }); } } else { handleNext(); } };
+  const handleAudioEnded = () => { if (isLooping) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("PLAY", { current_time: 0 }); } } else { handleNext(); } };
   
   const handleTogglePlay = () => {
     const audio = audioRef.current;
@@ -517,10 +563,10 @@ export default function App() {
       if (!audio.src && currentTrack?.src) audio.src = currentTrack.src;
       audio.play().then(() => {
         setIsPlaying(true);
-        setIsAudioLocked(false);
+        setShowAudioPrompt(false);
         setIsLocallyPaused(false);
         if (!isRemoteAction.current) sendAction("PLAY", { current_time: audio.currentTime });
-      }).catch(() => setIsAudioLocked(true));
+      }).catch(() => {});
     } else {
       if (isInRoom && !isUserHost) {
         // Listener pauses only for themselves, not the whole room
@@ -561,7 +607,7 @@ export default function App() {
       if (res.ok) {
         if (isSignupMode) { setMode("login"); setPassword(""); setAuthError("Account created successfully. Please login."); setIsSubmitting(false); }
         else {
-          const data = await res.json(); const resolvedUser = { id: data.user?.id, username: data.user?.username, email: data.user?.email, token: data.access_token, mode };
+          const data = await res.json(); const resolvedUser = { id: data.user?.id, uid: data.user?.uid, username: data.user?.username, email: data.user?.email, token: data.access_token, mode };
           localStorage.setItem("syncroom_user", JSON.stringify(resolvedUser)); localStorage.setItem("syncroom_active_username", resolvedUser.username);
           setUser(resolvedUser); setActiveTab("discover"); setActiveView("workspace"); setIsAuthenticated(true); setIsSubmitting(false);
         }
@@ -690,19 +736,29 @@ export default function App() {
     <>
       <audio ref={audioRef} preload="auto" onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleAudioEnded} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onError={(e) => console.warn("[SyncRoom Audio] Playback error:", e)} />
 
-      {isAudioLocked && (
-        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm cursor-pointer" onClick={() => {
-          if (audioRef.current) {
-            if (!audioRef.current.src && currentTrack?.src) {
-              audioRef.current.src = currentTrack.src;
-            }
-            audioRef.current.play().then(() => setIsAudioLocked(false)).catch(console.warn);
-          }
-        }}>
-          <div className="rounded-2xl bg-neutral-900 px-8 py-6 text-center shadow-2xl border border-neutral-700 animate-in fade-in zoom-in-95 duration-200">
-            <p className="text-xl font-medium text-white mb-2">Tap anywhere to enable audio</p>
-            <p className="text-sm text-neutral-400">Browser autoplay policy requires a user interaction.</p>
-          </div>
+      {showAudioPrompt && (
+        <div
+          style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#f5f5f5", color: effectiveTextColor }}
+          className="fixed top-3 left-3 z-[60] flex items-center gap-2.5 rounded-xl border border-neutral-800 px-3 py-2 text-xs shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+          <span className="font-medium opacity-85">Allow audio playback?</span>
+          <button
+            type="button"
+            onClick={handlePermitAudio}
+            style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+            className="pixel-btn rounded-lg px-2.5 py-1 text-[11px] font-medium transition-opacity hover:opacity-80"
+          >
+            Allow
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAudioPrompt(false)}
+            className="text-neutral-400 hover:text-white px-1 text-xs"
+            title="Dismiss"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -894,9 +950,9 @@ export default function App() {
 
           <div className="relative flex flex-1 overflow-hidden">
             <Sidebar
-              user={user} roomCode={roomCode} roomName={roomName} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setActiveView("workspace"); }}
-              listeners={listeners} currentHost={currentHost} isInRoom={isInRoom} onOpenSettings={() => setActiveView("settings")}
-              onExitRoom={handleExitRoom} onGiveLeadership={handleGiveLeadership} onKickUser={handleKickUser} onChangeWallpaper={handleChangeWallpaper}
+              user={user} roomCode={roomCode} roomId={roomId} roomName={roomName} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setActiveView("workspace"); }}
+              listeners={listeners} kickedUsers={kickedUsers} currentHost={currentHost} isInRoom={isInRoom} onOpenSettings={() => setActiveView("settings")}
+              onExitRoom={handleExitRoom} onGiveLeadership={handleGiveLeadership} onKickUser={handleKickUser} onAllowUser={handleAllowUser} onChangeWallpaper={handleChangeWallpaper}
               isMobileOpen={isMobileOpen} setIsMobileOpen={setIsMobileOpen} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
             />
 
@@ -946,8 +1002,8 @@ export default function App() {
                 searchQuery={searchQuery} onSearchChange={setSearchQuery} onSelectTrack={handleSelectTrack} onAddToQueue={handleAddToQueue}
                 onRemoveFromQueue={handleRemoveFromQueue} onClearQueue={handleClearQueue} onLoadAllToQueue={handleLoadAllToQueue}
                 localTracks={localTracks} onImportLocalFiles={handleImportLocalFiles} favorites={favorites} onToggleFavorite={handleToggleFavorite}
-                currentRoomCode={roomCode} roomName={roomName} isInRoom={isInRoom} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} onExitRoom={handleExitRoom}
-                listeners={listeners} currentHost={currentHost} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
+                currentRoomCode={roomCode} roomId={roomId} roomName={roomName} isInRoom={isInRoom} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} onExitRoom={handleExitRoom}
+                listeners={listeners} kickedUsers={kickedUsers} onAllowUser={handleAllowUser} currentHost={currentHost} user={user} onLogout={handleLogout} effectiveSiteColor={effectiveSiteColor} effectiveTextColor={effectiveTextColor} surfaceBg={surfaceBg}
                 playlists={playlists} onAddToPlaylist={handleAddToPlaylist} onDeletePlaylist={handleDeletePlaylist} 
                 onRenamePlaylist={handleRenamePlaylist} onCreatePlaylist={handleCreatePlaylist} onRemoveTrackFromPlaylist={handleRemoveTrackFromPlaylist} recentTracks={recentTracks}
                 topPlayedTracks={topPlayedTracks} trendingTracks={trendingTracks}

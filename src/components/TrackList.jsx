@@ -26,12 +26,15 @@ export default function TrackList({
   favorites = [],
   onToggleFavorite,
   currentRoomCode = "LOBBY",
+  roomId = "",
   roomName = "",
   isInRoom = false,
   onJoinRoom,
   onCreateRoom,
   onExitRoom,
   listeners = [],
+  kickedUsers = [],
+  onAllowUser,
   currentHost = "",
   user = null,
   onLogout,
@@ -57,6 +60,7 @@ export default function TrackList({
   const chatBottomRef = useRef(null);
   const [newRoomName, setNewRoomName] = useState("");
   const [customRoomCode, setCustomRoomCode] = useState("");
+  const [customRoomId, setCustomRoomId] = useState("");
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [roomNotice, setRoomNotice] = useState("");
   const [chatInputText, setChatInputText] = useState("");
@@ -102,10 +106,12 @@ export default function TrackList({
     e.preventDefault();
     const code = normalizeRoomCode(customRoomCode);
     const name = newRoomName.trim();
-    onCreateRoom?.(code, name);
+    const rid = customRoomId.trim();
+    onCreateRoom?.(code, name, rid);
     setRoomNotice(`Created room!`);
     setNewRoomName("");
     setCustomRoomCode("");
+    setCustomRoomId("");
     setTimeout(() => setRoomNotice(""), 3000);
   };
 
@@ -270,13 +276,13 @@ export default function TrackList({
   };
 
   return (
-    <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
-      <div key={activeTab} className="tab-content-enter">
+    <section style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="flex-1 overflow-y-auto p-0">
+      <div key={activeTab} className="tab-content-enter min-h-full">
         {activeTab === "discover" && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <div
               style={{ backgroundColor: surfaceBg }}
-              className="sticky top-0 z-40 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
+              className="sticky top-0 z-40 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"
             >
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl capitalize">{isSearching ? "Search Results" : "Internet catalog"}</h2>
@@ -308,6 +314,7 @@ export default function TrackList({
               </div>
             </div>
 
+            <div className="px-4 pb-4 sm:px-6 sm:pb-6 md:px-8 md:pb-8">
             {isSearching ? (
               <div className="flex flex-col gap-1">
                 <div className="hidden grid-cols-[2.5rem_3.5rem_1.5fr_1fr_4.5rem_14rem] items-center px-4 py-2 text-[10px] font-medium opacity-50 sm:grid">
@@ -346,7 +353,7 @@ export default function TrackList({
                     </span>
                   </button>
                   <div
-                    className={`transition-all duration-300 ${
+                    className={`transition-all duration-300 pl-3 ${
                       expandedFavs ? "max-h-[800px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
                     }`}
                   >
@@ -355,11 +362,11 @@ export default function TrackList({
                         {(showAllFavs ? favorites : favorites.slice(0, 5)).map((t) => (
                           <div key={t.id} className="flex items-center justify-between text-xs group relative">
                             <div
-                              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 hover:opacity-80 transition-opacity duration-200"
+                              className="flex items-center gap-2 cursor-pointer flex-1 min-w-0 text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
                               onClick={() => onSelectTrack(t, favorites)}
                             >
                               <span className="truncate pr-2">{t.title}</span>
-                              <span className="opacity-50 text-[10px] shrink-0">{t.artist}</span>
+                              <span className="text-neutral-500 text-[10px] shrink-0">{t.artist}</span>
                             </div>
                             <div className="relative shrink-0">
                               <button
@@ -368,7 +375,7 @@ export default function TrackList({
                                   e.stopPropagation();
                                   setOpenFavMenu((prev) => (prev === t.id ? null : t.id));
                                 }}
-                                className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200"
+                                className="pixel-btn px-2 py-1 text-neutral-500 hover:text-neutral-200 transition-colors duration-200"
                                 title="Options"
                               >
                                 ⋯
@@ -403,7 +410,7 @@ export default function TrackList({
                         {favorites.length > 5 && !showAllFavs && (
                           <button
                             onClick={() => setShowAllFavs(true)}
-                            className="text-[10px] text-left text-neutral-400 hover:text-white mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
                           >
                             Show all {favorites.length} favorites
                           </button>
@@ -411,14 +418,14 @@ export default function TrackList({
                         {showAllFavs && favorites.length > 5 && (
                           <button
                             onClick={() => setShowAllFavs(false)}
-                            className="text-[10px] text-left text-neutral-400 hover:text-white mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
                           >
                             Show less
                           </button>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs opacity-50">No favorites yet.</p>
+                      <p className="text-xs text-neutral-500">No favorites yet.</p>
                     )}
                   </div>
                 </div>
@@ -444,7 +451,7 @@ export default function TrackList({
                     </div>
                   </div>
                   <div
-                    className={`transition-all duration-300 ${
+                    className={`transition-all duration-300 pl-3 ${
                       expandedPlaylists ? "max-h-[800px] opacity-100 mt-3 overflow-visible" : "max-h-0 opacity-0 overflow-hidden pointer-events-none"
                     }`}
                   >
@@ -454,7 +461,7 @@ export default function TrackList({
                           <div key={p.id} className="flex flex-col">
                             <div className="flex items-center justify-between text-xs group relative">
                               <div
-                                className="flex items-center gap-2 flex-1 cursor-pointer hover:opacity-80 transition-opacity duration-200 min-w-0"
+                                className="flex items-center gap-2 flex-1 cursor-pointer text-neutral-400 hover:text-neutral-200 transition-colors duration-200 min-w-0"
                                 onClick={() => setExpandedPlaylistId(expandedPlaylistId === p.id ? null : p.id)}
                               >
                                 {editingPlaylistId === p.id ? (
@@ -465,13 +472,13 @@ export default function TrackList({
                                     onChange={(e) => setEditName(e.target.value)}
                                     onBlur={() => handleRenameSubmit(p.id)}
                                     onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit(p.id)}
-                                    className="bg-neutral-800 px-1 py-0.5 rounded text-xs w-full outline-none border border-neutral-600"
+                                    className="bg-neutral-800 px-1 py-0.5 rounded text-xs w-full outline-none border border-neutral-600 text-neutral-200"
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 ) : (
                                   <span className="truncate pr-2 flex-1">{p.name}</span>
                                 )}
-                                <span className="opacity-50 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
+                                <span className="text-neutral-500 text-[10px] shrink-0">{p.tracks?.length || 0} tracks</span>
                               </div>
                               <div className="relative shrink-0">
                                 <button
@@ -479,7 +486,7 @@ export default function TrackList({
                                     e.stopPropagation();
                                     setOpenPlaylistMenu((prev) => (prev === p.id ? null : p.id));
                                   }}
-                                  className="pixel-btn px-2 py-1 text-neutral-400 hover:text-white transition-colors duration-200"
+                                  className="pixel-btn px-2 py-1 text-neutral-500 hover:text-neutral-200 transition-colors duration-200"
                                 >
                                   ⋯
                                 </button>
@@ -517,14 +524,14 @@ export default function TrackList({
                                   p.tracks.map((track, i) => (
                                     <div
                                       key={`${track.id}-${i}`}
-                                      className="flex items-center justify-between text-[10px] text-neutral-400 hover:text-white transition-colors duration-200"
+                                      className="flex items-center justify-between text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
                                     >
                                       <div
                                         className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer"
                                         onClick={() => onSelectTrack(track, p.tracks)}
                                       >
                                         <span className="truncate pr-2">{track.title}</span>
-                                        <span className="truncate opacity-50">{track.artist}</span>
+                                        <span className="truncate text-neutral-500">{track.artist}</span>
                                       </div>
                                       <button
                                         type="button"
@@ -533,14 +540,14 @@ export default function TrackList({
                                           onRemoveTrackFromPlaylist?.(p.id, track.id);
                                         }}
                                         title="Remove from playlist"
-                                        className="pixel-btn ml-2 flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                                        className="pixel-btn ml-2 flex h-4 w-4 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
                                       >
                                         ✕
                                       </button>
                                     </div>
                                   ))
                                 ) : (
-                                  <p className="text-[10px] opacity-40">Empty playlist.</p>
+                                  <p className="text-[10px] text-neutral-500">Empty playlist.</p>
                                 )}
                               </div>
                             )}
@@ -548,7 +555,7 @@ export default function TrackList({
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs opacity-50">No playlists created.</p>
+                      <p className="text-xs text-neutral-500">No playlists created.</p>
                     )}
                   </div>
                 </div>
@@ -565,7 +572,7 @@ export default function TrackList({
                     </span>
                   </button>
                   <div
-                    className={`overflow-hidden transition-all duration-300 ${
+                    className={`overflow-hidden transition-all duration-300 pl-3 ${
                       expandedRecents ? "max-h-[800px] opacity-100 mt-3" : "max-h-0 opacity-0"
                     }`}
                   >
@@ -574,17 +581,17 @@ export default function TrackList({
                         {(showAllRecents ? recentTracks : recentTracks.slice(0, 5)).map((t) => (
                           <div
                             key={`recent-${t.id}`}
-                            className="flex items-center justify-between text-xs cursor-pointer hover:opacity-80 transition-opacity duration-200"
+                            className="flex items-center justify-between text-xs cursor-pointer text-neutral-400 hover:text-neutral-200 transition-colors duration-200"
                             onClick={() => onSelectTrack(t, recentTracks)}
                           >
                             <span className="truncate pr-2">{t.title}</span>
-                            <span className="opacity-50 text-[10px] shrink-0">{t.artist}</span>
+                            <span className="text-neutral-500 text-[10px] shrink-0">{t.artist}</span>
                           </div>
                         ))}
                         {recentTracks.length > 5 && !showAllRecents && (
                           <button
                             onClick={() => setShowAllRecents(true)}
-                            className="text-[10px] text-left text-neutral-400 hover:text-white mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
                           >
                             Show all {recentTracks.length} recents
                           </button>
@@ -592,14 +599,14 @@ export default function TrackList({
                         {showAllRecents && recentTracks.length > 5 && (
                           <button
                             onClick={() => setShowAllRecents(false)}
-                            className="text-[10px] text-left text-neutral-400 hover:text-white mt-1 transition-colors duration-200"
+                            className="text-[10px] text-left text-neutral-500 hover:text-neutral-200 mt-1 transition-colors duration-200"
                           >
                             Show less
                           </button>
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs opacity-50">No recent history.</p>
+                      <p className="text-xs text-neutral-500">No recent history.</p>
                     )}
                   </div>
                 </div>
@@ -638,11 +645,12 @@ export default function TrackList({
                 })()}
               </div>
             )}
+            </div>
           </div>
         )}
 
         {activeTab === "rooms" && (
-          <div className="flex flex-col gap-6 max-w-4xl">
+          <div className="flex flex-col gap-6 max-w-4xl p-4 sm:p-6 md:p-8">
             <div>
               <h2 className="text-xl font-medium sm:text-2xl">Rooms & Synced Sessions</h2>
               <p className="mt-1 text-xs opacity-65">Host your own synchronized audio room or join an active session.</p>
@@ -659,7 +667,14 @@ export default function TrackList({
               <div className="flex flex-col gap-6 animate-in fade-in duration-200">
                 <div className="rounded-2xl bg-neutral-900/40 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <span className="text-[10px] font-medium opacity-50">CURRENT ACTIVE ROOM</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-medium opacity-50">CURRENT ACTIVE ROOM</span>
+                      {roomId && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-950/70 text-neutral-400">
+                          ID: {roomId}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
                       <h3 className="text-sm sm:text-base font-semibold font-mono tracking-wide text-neutral-300">
@@ -731,6 +746,32 @@ export default function TrackList({
                     })}
                   </div>
                 </div>
+
+                {isUserHost && kickedUsers.length > 0 && (
+                  <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-3">
+                    <div>
+                      <h3 className="text-sm font-medium text-red-400">Blocked / Kicked Users</h3>
+                      <p className="text-xs opacity-60">Kicked users cannot rejoin with the same account unless you allow them.</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {kickedUsers.map((k) => (
+                        <div key={k.username} className="flex items-center justify-between rounded-xl bg-neutral-950/60 px-3 py-2 text-xs">
+                          <div className="min-w-0">
+                            <span className="font-medium truncate block">{k.username}</span>
+                            {k.user_id && <span className="text-[10px] font-mono opacity-40">{k.user_id}</span>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onAllowUser?.(k.username)}
+                            className="pixel-btn rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-2.5 py-1 text-[11px] font-medium transition-colors"
+                          >
+                            Allow
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* CREATE & JOIN ROOM FORMS: Shown only when user is not in a room */
@@ -760,6 +801,16 @@ export default function TrackList({
                         value={customRoomCode}
                         onChange={(e) => setCustomRoomCode(e.target.value)}
                         placeholder="e.g. #a1b2c3d4 (auto if blank)"
+                        className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs font-mono focus:outline-none placeholder-neutral-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold opacity-75">Room ID (Optional)</label>
+                      <input
+                        type="text"
+                        value={customRoomId}
+                        onChange={(e) => setCustomRoomId(e.target.value)}
+                        placeholder="e.g. RM-1234ABCD (unique auto if blank)"
                         className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs font-mono focus:outline-none placeholder-neutral-600"
                       />
                     </div>
@@ -818,23 +869,23 @@ export default function TrackList({
                   }
                 : { backgroundColor: surfaceBg }
             }
-            className="flex flex-col min-h-[calc(100vh-10.5rem)] -m-4 sm:-m-6 md:-m-8 p-4 sm:p-6 md:p-8"
+            className="flex flex-col min-h-full"
           >
             <div
               style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
-              className={`sticky top-0 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex items-center justify-between border-b border-neutral-800/80 shrink-0 ${
+              className={`sticky top-0 z-30 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex items-center justify-between border-b border-neutral-800/80 shrink-0 ${
                 chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
               }`}
             >
               <div>
                 <h2 className="text-lg font-medium sm:text-xl">Room Chat</h2>
                 <p className="text-xs opacity-60">
-                  {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)} ({listeners.length}/20 online)
+                  {roomName ? `${roomName} • ` : ""}{formatRoomCode(currentRoomCode)} {roomId ? `• ${roomId}` : ""} ({listeners.length}/20 online)
                 </p>
               </div>
             </div>
 
-            <div className="flex-1 space-y-3 py-4 max-w-4xl w-full">
+            <div className="flex-1 space-y-3 py-4 px-4 sm:px-6 md:px-8 max-w-4xl w-full">
               {chatMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center opacity-50 text-xs">
                   <p>No messages yet in this room.</p>
@@ -878,7 +929,7 @@ export default function TrackList({
             <form
               onSubmit={handleSendChat}
               style={!chatWallpaper ? { backgroundColor: surfaceBg } : {}}
-              className={`sticky bottom-0 z-30 -mx-4 -mb-4 px-4 pb-4 pt-3 sm:-mx-6 sm:-mb-6 sm:px-6 sm:pb-6 md:-mx-8 md:-mb-8 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 ${
+              className={`sticky bottom-0 z-30 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 md:px-8 md:pb-8 flex items-center gap-2 border-t border-neutral-800/80 shrink-0 ${
                 chatWallpaper ? "bg-black/75 backdrop-blur-md" : ""
               }`}
             >
@@ -901,10 +952,10 @@ export default function TrackList({
         )}
 
         {activeTab === "queue" && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <div
               style={{ backgroundColor: surfaceBg }}
-              className="sticky top-0 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 flex items-center justify-between"
+              className="sticky top-0 z-30 px-4 pt-4 pb-3 sm:px-6 sm:pt-6 md:px-8 md:pt-8 flex items-center justify-between"
             >
               <div>
                 <h2 className="text-xl font-medium sm:text-2xl">Room Queue</h2>
@@ -922,6 +973,7 @@ export default function TrackList({
                 )}
               </div>
             </div>
+            <div className="flex flex-col gap-6 px-4 pb-4 sm:px-6 sm:pb-6 md:px-8 md:pb-8">
             {currentTrack && (
               <div className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-900/40 p-4 sm:p-5">
                 <div className="flex items-center gap-4 min-w-0">
@@ -977,11 +1029,12 @@ export default function TrackList({
                 </button>
               </div>
             )}
+            </div>
           </div>
         )}
 
         {activeTab === "profile" && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 p-4 sm:p-6 md:p-8">
             <div className="pb-2">
               <h2 className="text-xl font-medium sm:text-2xl">Your Profile</h2>
             </div>
@@ -990,9 +1043,14 @@ export default function TrackList({
                 {user?.username ? user.username.charAt(0).toUpperCase() : "P"}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="truncate text-lg font-medium">{user?.username || "User"}</h3>
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-emerald-400/20 text-emerald-300">SYNCED ACCOUNT</span>
+                  {user?.uid && (
+                    <span className="rounded px-1.5 py-0.5 text-[9px] font-mono bg-neutral-800 text-neutral-300">
+                      ID: {user.uid}
+                    </span>
+                  )}
                 </div>
                 <p className="truncate text-xs opacity-60">{user?.email || ""}</p>
               </div>
@@ -1019,7 +1077,7 @@ export default function TrackList({
         )}
 
         {activeTab === "storage" && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 p-4 sm:p-6 md:p-8">
             <div className="pb-2">
               <h2 className="text-xl font-medium sm:text-2xl">Local Storage</h2>
             </div>

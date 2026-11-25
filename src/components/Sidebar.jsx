@@ -17,12 +17,14 @@ export default function Sidebar({
   activeTab,
   setActiveTab,
   listeners = [],
+  kickedUsers = [],
   currentHost = "",
   isInRoom = false,
   onOpenSettings,
   onExitRoom,
   onGiveLeadership,
   onKickUser,
+  onAllowUser,
   onChangeWallpaper,
   isMobileOpen,
   setIsMobileOpen,
@@ -331,6 +333,26 @@ export default function Sidebar({
                       <p className="text-[11px] opacity-40">Host only.</p>
                     )}
                   </div>
+                  {isUserHost && kickedUsers.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-medium opacity-60 mb-1">ALLOW KICKED USER</p>
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            onAllowUser?.(e.target.value);
+                            handleCloseRoomOptions();
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs text-emerald-400 focus:outline-none"
+                      >
+                        <option value="" disabled>Allow back...</option>
+                        {kickedUsers.map((k) => (
+                          <option key={k.username} value={k.username}>Allow {k.username}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <button
                       type="button"
