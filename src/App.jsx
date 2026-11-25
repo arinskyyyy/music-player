@@ -1259,10 +1259,10 @@ export default function App() {
               <main key="settings-panel" style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="auth-soft-enter flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
                 <div className="flex flex-col gap-8 max-w-3xl pb-10">
                   <div className="flex items-center justify-between pb-2 border-b border-neutral-800/70">
-                    <div><p className="text-[10px] opacity-50">ACCOUNT & PREFERENCES</p><h2 className="text-xl font-medium sm:text-2xl">SETTINGS</h2></div>
+                    <div><p className="text-[10px] opacity-50">ACCOUNT & PREFERENCES</p><h2 className="text-xl font-medium sm:text-2xl">Settings</h2></div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => { setThemeMode("black"); setBgColor("#000000"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">RESET THEME</button>
-                      <button type="button" onClick={() => setActiveView("workspace")} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">BACK TO PLAYER</button>
+                      <button type="button" onClick={() => { setThemeMode("black"); setBgColor("#000000"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">Reset theme</button>
+                      <button type="button" onClick={() => setActiveView("workspace")} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">Back to Player</button>
                     </div>
                   </div>
 
