@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     ALLOW_RESET_CODE_IN_RESPONSE: bool = os.getenv("ALLOW_RESET_CODE_IN_RESPONSE", "true").lower() in ("true", "1", "yes")
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    SMTP_HOST: str = os.getenv("SMTP_HOST", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "Illusion <onboarding@resend.dev>")
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
     APPLE_CLIENT_ID: str = os.getenv("APPLE_CLIENT_ID", "")
 
