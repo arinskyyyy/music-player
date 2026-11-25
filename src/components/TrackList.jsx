@@ -1045,13 +1045,6 @@ export default function TrackList({
                   <span className="rounded px-1.5 py-0.5 text-[9px] font-medium bg-emerald-400/20 text-emerald-300">SYNCED ACCOUNT</span>
                 </div>
                 <p className="truncate text-xs opacity-60">{user?.email || ""}</p>
-                <button
-                  type="button"
-                  onClick={() => avatarInputRef.current?.click()}
-                  className="mt-1.5 text-[11px] font-medium opacity-70 hover:opacity-100 underline underline-offset-2 transition-opacity"
-                >
-                  Upload profile picture
-                </button>
               </div>
               <button type="button" onClick={onLogout} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn shrink-0 rounded-xl px-4 py-2 text-xs font-medium transition-colors duration-200 hover:opacity-80">
                 LOGOUT

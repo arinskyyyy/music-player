@@ -153,6 +153,16 @@ export default function App() {
 
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const isRemoteAction = useRef(false);
+  const settingsAvatarInputRef = useRef(null);
+  const [settingsUsername, setSettingsUsername] = useState(() => user?.username || "");
+  const [settingsEmail, setSettingsEmail] = useState(() => user?.email || "");
+  const [settingsCurrentPassword, setSettingsCurrentPassword] = useState("");
+  const [settingsNewPassword, setSettingsNewPassword] = useState("");
+  const [settingsConfirmPassword, setSettingsConfirmPassword] = useState("");
+  const [showSettingsPasswords, setShowSettingsPasswords] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Load Stats on Login
   useEffect(() => {
@@ -330,6 +340,89 @@ export default function App() {
       img.src = ev.target?.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    if (!user?.token) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, avatar_url: "" };
+      try { localStorage.setItem("syncroom_user", JSON.stringify(updated)); } catch { /* ignore */ }
+      return updated;
+    });
+    fetch(`${API_BASE}/api/user/avatar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+      body: JSON.stringify({ avatar_url: "" }),
+    }).catch(() => {});
+  };
+
+  const handleSaveProfileSettings = async (e) => {
+    e.preventDefault();
+    if (!user?.token) return;
+    setSettingsError("");
+    setSettingsMessage("");
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ username: settingsUsername.trim(), email: settingsEmail.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.user) {
+        const updated = {
+          ...user,
+          username: data.user.username,
+          email: data.user.email,
+          token: data.access_token || user.token,
+        };
+        setUser(updated);
+        try {
+          localStorage.setItem("syncroom_user", JSON.stringify(updated));
+          localStorage.setItem("syncroom_active_username", updated.username);
+        } catch { /* ignore */ }
+        setSettingsMessage("Account details updated successfully.");
+      } else {
+        setSettingsError(data.detail || "Failed to update account details.");
+      }
+    } catch {
+      setSettingsError("Network error updating account details.");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleChangePasswordSettings = async (e) => {
+    e.preventDefault();
+    if (!user?.token) return;
+    setSettingsError("");
+    setSettingsMessage("");
+    if (settingsNewPassword !== settingsConfirmPassword) {
+      setSettingsError("New passwords do not match.");
+      return;
+    }
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/user/change-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ current_password: settingsCurrentPassword, new_password: settingsNewPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSettingsCurrentPassword("");
+        setSettingsNewPassword("");
+        setSettingsConfirmPassword("");
+        setSettingsMessage("Password updated successfully.");
+      } else {
+        setSettingsError(data.detail || "Failed to update password.");
+      }
+    } catch {
+      setSettingsError("Network error updating password.");
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const handlePermitAudio = () => {
@@ -986,7 +1079,7 @@ export default function App() {
               <button type="button" onClick={() => setIsMuted((prev) => !prev)} className="pixel-btn hidden rounded-lg bg-neutral-900/60 px-3 py-1 text-[11px] font-medium sm:inline-block transition-colors duration-200 hover:bg-neutral-800">
                 {isMuted ? "unmute" : "mute"}
               </button>
-              <button type="button" onClick={() => setActiveView((prev) => prev === "settings" ? "workspace" : "settings")} aria-label="Settings" style={activeView === "settings" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200 ${activeView !== "settings" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}><PixelGearIcon /></button>
+              <button type="button" onClick={() => { setSettingsUsername(user?.username || ""); setSettingsEmail(user?.email || ""); setSettingsMessage(""); setSettingsError(""); setActiveView((prev) => prev === "settings" ? "workspace" : "settings"); }} aria-label="Settings" style={activeView === "settings" ? { backgroundColor: effectiveSiteColor, color: surfaceBg } : {}} className={`pixel-btn flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200 ${activeView !== "settings" ? "bg-neutral-900/60 hover:bg-neutral-800" : ""}`}><PixelGearIcon /></button>
               <button type="button" onClick={handleLogout} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-3 py-1 text-[11px] font-medium transition-colors duration-200 hover:opacity-80">
                 logout
               </button>
@@ -1003,15 +1096,183 @@ export default function App() {
 
             {activeView === "settings" ? (
               <main key="settings-panel" style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="auth-soft-enter flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
-                <div className="flex flex-col gap-6 max-w-3xl">
-                  <div className="flex items-center justify-between pb-2">
-                    <div><p className="text-[10px] opacity-50">PREFERENCES MATRIX</p><h2 className="text-xl font-medium sm:text-2xl">APPEARANCE & THEME</h2></div>
+                <div className="flex flex-col gap-8 max-w-3xl pb-10">
+                  <div className="flex items-center justify-between pb-2 border-b border-neutral-800/70">
+                    <div><p className="text-[10px] opacity-50">ACCOUNT & PREFERENCES</p><h2 className="text-xl font-medium sm:text-2xl">SETTINGS</h2></div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => { setThemeMode("bw"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">RESET</button>
+                      <button type="button" onClick={() => { setThemeMode("bw"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">RESET THEME</button>
                       <button type="button" onClick={() => setActiveView("workspace")} style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }} className="pixel-btn rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors duration-200 hover:opacity-80">BACK TO PLAYER</button>
                     </div>
                   </div>
 
+                  {settingsMessage && (
+                    <p className="rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-4 py-2 text-xs font-medium text-emerald-400">
+                      {settingsMessage}
+                    </p>
+                  )}
+                  {settingsError && (
+                    <p className="rounded-xl border border-red-500/40 bg-red-950/20 px-4 py-2 text-xs font-medium text-red-400">
+                      {settingsError}
+                    </p>
+                  )}
+
+                  {/* ACCOUNT & PROFILE SETTINGS */}
+                  <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-5">
+                    <div>
+                      <h3 className="text-sm font-medium">Account & Profile</h3>
+                      <p className="text-[11px] opacity-55">Update your profile picture, username, and email address.</p>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <input
+                        ref={settingsAvatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadAvatar(file);
+                          e.target.value = "";
+                        }}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => settingsAvatarInputRef.current?.click()}
+                        style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                        className="group relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full overflow-hidden text-xl font-medium cursor-pointer"
+                        title="Change profile icon"
+                      >
+                        {user?.avatar_url ? (
+                          <img src={user.avatar_url} alt={user.username || "User"} className="h-full w-full object-cover" />
+                        ) : (
+                          <span>{user?.username ? user.username.charAt(0).toUpperCase() : "P"}</span>
+                        )}
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-[10px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                          EDIT
+                        </span>
+                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => settingsAvatarInputRef.current?.click()}
+                          className="pixel-btn rounded-xl bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                        >
+                          Change Profile Icon
+                        </button>
+                        {user?.avatar_url && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveAvatar}
+                            className="pixel-btn rounded-xl bg-red-500/15 hover:bg-red-500/25 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <form onSubmit={handleSaveProfileSettings} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium opacity-70">Username</label>
+                        <input
+                          type="text"
+                          required
+                          value={settingsUsername}
+                          onChange={(e) => setSettingsUsername(e.target.value)}
+                          className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium opacity-70">Email</label>
+                        <input
+                          type="email"
+                          required
+                          value={settingsEmail}
+                          onChange={(e) => setSettingsEmail(e.target.value)}
+                          className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={isSavingSettings}
+                          style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                          className="pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                        >
+                          {isSavingSettings ? "Saving..." : "Save Account Details"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* PASSWORD & SECURITY */}
+                  <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-medium">Change Password</h3>
+                        <p className="text-[11px] opacity-55">Update your account password.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowSettingsPasswords((prev) => !prev)}
+                        className="text-[11px] opacity-60 hover:opacity-100 underline underline-offset-2"
+                      >
+                        {showSettingsPasswords ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    <form onSubmit={handleChangePasswordSettings} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium opacity-70">Current Password</label>
+                        <input
+                          type={showSettingsPasswords ? "text" : "password"}
+                          required
+                          value={settingsCurrentPassword}
+                          onChange={(e) => setSettingsCurrentPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium opacity-70">New Password</label>
+                        <input
+                          type={showSettingsPasswords ? "text" : "password"}
+                          required
+                          value={settingsNewPassword}
+                          onChange={(e) => setSettingsNewPassword(e.target.value)}
+                          placeholder="Min 6 characters"
+                          className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium opacity-70">Confirm Password</label>
+                        <input
+                          type={showSettingsPasswords ? "text" : "password"}
+                          required
+                          value={settingsConfirmPassword}
+                          onChange={(e) => setSettingsConfirmPassword(e.target.value)}
+                          placeholder="Repeat password"
+                          className="w-full rounded-xl bg-neutral-950/80 px-3 py-2 text-xs focus:outline-none border border-neutral-800"
+                        />
+                      </div>
+                      <div className="sm:col-span-3 flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={isSavingSettings}
+                          style={{ backgroundColor: effectiveSiteColor, color: surfaceBg }}
+                          className="pixel-btn rounded-xl px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                        >
+                          Update Password
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* APPEARANCE & THEME */}
+                  <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-5">
+                    <div>
+                      <h3 className="text-sm font-medium">Appearance & Theme</h3>
+                      <p className="text-[11px] opacity-55">Customize site colors and theme mode.</p>
+                    </div>
                   <div className="space-y-2.5">
                     <p className="text-xs font-medium opacity-70">BASE THEME MODE</p>
                     <div className="flex flex-wrap gap-2.5">
@@ -1038,6 +1299,7 @@ export default function App() {
                       ))}
                       <label className="pixel-btn flex cursor-pointer items-center gap-2 rounded-xl bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200"><span>Text Custom</span><input type="color" value={textColor} onChange={(e) => { setThemeMode("system"); setTextColor(e.target.value); }} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0" /></label>
                     </div>
+                  </div>
                   </div>
                 </div>
               </main>
