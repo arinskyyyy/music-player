@@ -837,6 +837,34 @@ export default function App() {
     }
   };
 
+  const handleTogglePlayRef = useRef(null);
+  const handleNextRef = useRef(null);
+  const handlePrevRef = useRef(null);
+
+  const handleAudioPlayEvent = () => {
+    setIsPlaying(true);
+    setShowAudioPrompt(false);
+    if (isRemoteAction.current) return;
+    if (isInRoom && isUserHost) {
+      sendAction("PLAY", { current_time: audioRef.current?.currentTime || 0 });
+    } else if (isInRoom && !isUserHost && isLocallyPausedRef.current) {
+      isLocallyPausedRef.current = false;
+      setIsLocallyPaused(false);
+      requestSync();
+    }
+  };
+
+  const handleAudioPauseEvent = () => {
+    setIsPlaying(false);
+    if (isRemoteAction.current || audioRef.current?.ended) return;
+    if (isInRoom && isUserHost) {
+      sendAction("PAUSE", { current_time: audioRef.current?.currentTime || 0 });
+    } else if (isInRoom && !isUserHost) {
+      isLocallyPausedRef.current = true;
+      setIsLocallyPaused(true);
+    }
+  };
+
   const handleAudioEnded = () => { if (isLooping) { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); if (!isRemoteAction.current && (!isInRoom || isUserHost)) sendAction("PLAY", { current_time: 0 }); } } else { handleNext(); } };
   
   const handleTogglePlay = () => {
@@ -873,6 +901,36 @@ export default function App() {
       if (!isRemoteAction.current) sendAction("PAUSE", { current_time: audio.currentTime });
     }
   };
+
+  useEffect(() => {
+    handleTogglePlayRef.current = handleTogglePlay;
+    handleNextRef.current = handleNext;
+    handlePrevRef.current = handlePrev;
+  });
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!isAuthenticated || activeView !== "workspace") return;
+      const tag = (e.target?.tagName || "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || e.target?.isContentEditable) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        handleTogglePlayRef.current?.();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isAuthenticated, activeView]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.setActionHandler("play", () => handleTogglePlayRef.current?.());
+      navigator.mediaSession.setActionHandler("pause", () => handleTogglePlayRef.current?.());
+      navigator.mediaSession.setActionHandler("previoustrack", () => handlePrevRef.current?.());
+      navigator.mediaSession.setActionHandler("nexttrack", () => handleNextRef.current?.());
+    } catch { /* ignore unsupported mediaSession actions */ }
+  }, []);
   
   const handleSelectTrack = (track, listContext = null) => {
     if (listContext && Array.isArray(listContext)) setCurrentPlaybackList(listContext);
@@ -914,7 +972,7 @@ export default function App() {
     } catch { setAuthError("Server is unreachable. Please verify the backend is running on port 8000."); setIsSubmitting(false); }
   }
 
-  const handleSendCode = async () => { if (!forgotEmail.trim()) return setAuthError("Enter your email first."); try { const res = await fetch(`${API_BASE}/api/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail }) }); const data = await res.json(); if (res.ok) { setForgotStep(2); setAuthError(`Code sent. (DEV: ${data.dev_code})`); } else { setAuthError(data.detail || "Error sending code."); } } catch { setAuthError("Network error."); } };
+  const handleSendCode = async () => { if (!forgotEmail.trim()) return setAuthError("Enter your email first."); try { const res = await fetch(`${API_BASE}/api/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail }) }); const data = await res.json(); if (res.ok) { setForgotStep(2); setAuthError(data.dev_code ? `Code sent. (DEV: ${data.dev_code})` : "Reset code sent to your email."); } else { setAuthError(data.detail || "Error sending code."); } } catch { setAuthError("Network error."); } };
   const handleResetPassword = async () => { if (!resetCode.trim() || !newPassword.trim()) return setAuthError("Code and new password required."); try { const res = await fetch(`${API_BASE}/api/auth/reset-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: forgotEmail, code: resetCode, new_password: newPassword }) }); const data = await res.json(); if (res.ok) { setForgotStep(0); setMode("login"); setAuthError("Password reset! Please login."); setResetCode(""); setNewPassword(""); } else { setAuthError(data.detail || "Invalid code."); } } catch { setAuthError("Network error."); } };
 
   /* ==========================================================================
@@ -1033,7 +1091,7 @@ export default function App() {
 
   return (
     <>
-      <audio ref={audioRef} preload="auto" onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleAudioEnded} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onError={(e) => console.warn("[SyncRoom Audio] Playback error:", e)} />
+      <audio ref={audioRef} preload="auto" onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleAudioEnded} onPlay={handleAudioPlayEvent} onPause={handleAudioPauseEvent} onError={(e) => console.warn("[SyncRoom Audio] Playback error:", e)} />
 
       {isAuthenticated && showAudioPrompt && (
         <div
