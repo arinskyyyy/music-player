@@ -134,10 +134,18 @@ export default function App() {
   const [isLooping, setIsLooping] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
 
+  const [savedRoom] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem("syncroom_active_room");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeTab, setActiveTab] = useState("discover");
-  const [roomCode, setRoomCode] = useState(() => generateRoomCode());
-  const [roomId, setRoomId] = useState("");
-  const [roomName, setRoomName] = useState("");
+  const [roomCode, setRoomCode] = useState(() => savedRoom?.isInRoom && savedRoom?.roomCode ? savedRoom.roomCode : generateRoomCode());
+  const [roomId, setRoomId] = useState(() => (savedRoom?.isInRoom && savedRoom?.roomId) || "");
+  const [roomName, setRoomName] = useState(() => (savedRoom?.isInRoom && savedRoom?.roomName) || "");
   const [kickedUsers, setKickedUsers] = useState([]);
   const [queueRequests, setQueueRequests] = useState([]);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -145,7 +153,17 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [isLocallyPaused, setIsLocallyPaused] = useState(false);
   const [currentHost, setCurrentHost] = useState("");
-  const [isInRoom, setIsInRoom] = useState(false);
+  const [isInRoom, setIsInRoom] = useState(() => Boolean(savedRoom?.isInRoom && savedRoom?.roomCode));
+
+  useEffect(() => {
+    try {
+      if (isInRoom && roomCode && roomCode !== "LOBBY") {
+        sessionStorage.setItem("syncroom_active_room", JSON.stringify({ isInRoom: true, roomCode, roomId, roomName }));
+      } else {
+        sessionStorage.removeItem("syncroom_active_room");
+      }
+    } catch { /* ignore */ }
+  }, [isInRoom, roomCode, roomId, roomName]);
   const [wallpaper, setWallpaper] = useState(() => selectedMedia.src);
   const [searchQuery, setSearchQuery] = useState("");
   const [catalog, setCatalog] = useState(DEFAULT_CATALOG);
