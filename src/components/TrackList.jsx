@@ -1126,6 +1126,66 @@ export default function TrackList({
             )}
           </div>
         )}
+
+        {activeTab === "about" && (
+          <div className="flex flex-col gap-6 max-w-3xl p-4 sm:p-6 md:p-8">
+            <div className="pb-2">
+              <h2 className="text-xl font-medium sm:text-2xl">About Us</h2>
+              <p className="mt-1 text-xs opacity-65">Project information, creator credits, and contact links.</p>
+            </div>
+
+            <div className="rounded-2xl bg-neutral-900/40 p-5 sm:p-6 flex flex-col gap-5">
+              <div className="flex items-center gap-4">
+                <img
+                  src="/favicon.svg"
+                  alt="Illusion Icon"
+                  className="h-14 w-14 rounded-2xl border border-neutral-800 shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-lg font-semibold">Illusion</h3>
+                    <span className="rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-medium text-amber-300">
+                      Still in Development
+                    </span>
+                  </div>
+                  <p className="text-xs opacity-60 mt-0.5">Created by <span className="font-medium opacity-90">arinskyyyy</span></p>
+                </div>
+              </div>
+
+              <p className="text-xs leading-relaxed opacity-75">
+                Illusion is a real-time synchronized music streaming and listening room web application.
+                Search tracks across multiple music APIs, build custom playlists and favorites,
+                chat with friends in live rooms, and stay in sync with the room host.
+                This website is still actively in development, with new features and improvements arriving regularly.
+              </p>
+
+              <div className="border-t border-neutral-800/80 pt-4">
+                <p className="text-[10px] font-medium opacity-50 mb-3">CONTACT & LINKS</p>
+                <div className="flex flex-wrap gap-2.5 text-xs">
+                  <a
+                    href="https://github.com/arinskyyyy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="pixel-btn rounded-xl bg-neutral-950/70 hover:bg-neutral-800 px-3.5 py-2 font-medium transition-colors"
+                  >
+                    GitHub (@arinskyyyy)
+                  </a>
+                  <a
+                    href="https://linktr.ee/arinskyyyy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="pixel-btn rounded-xl bg-neutral-950/70 hover:bg-neutral-800 px-3.5 py-2 font-medium transition-colors"
+                  >
+                    Linktree
+                  </a>
+                  <span className="rounded-xl bg-neutral-950/70 px-3.5 py-2 font-medium opacity-85">
+                    Discord: arinskyyyy
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
