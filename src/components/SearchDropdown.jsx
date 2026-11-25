@@ -63,7 +63,7 @@ export default function SearchDropdown({ isFavorite, onToggleFavorite, onSelectT
         className="w-full rounded-xl px-3.5 py-2 text-xs placeholder-neutral-500 focus:outline-none border border-neutral-800 transition-colors focus:border-neutral-500"
       />
       {query.trim() !== "" && (
-        <div style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#ffffff", color: effectiveTextColor }} className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-neutral-800 p-2 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
+        <div style={{ backgroundColor: surfaceBg === "#ffffff" ? "#ffffff" : "#141414", color: effectiveTextColor }} className="absolute z-50 mt-2 max-h-[60vh] sm:max-h-80 w-full overflow-y-auto rounded-2xl border border-neutral-800 p-2 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200">
           {loading && <p className="px-3 py-3 text-xs opacity-50">Searching...</p>}
           {!loading && results.length === 0 && <p className="px-3 py-3 text-xs opacity-50">No results found.</p>}
           {!loading && results.map((t) => {
