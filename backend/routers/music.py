@@ -1,14 +1,15 @@
 import json
 import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-import httpx
 from backend.database import get_db
 from backend.models import FavoriteTrack, SavedPlaylist, User, GlobalTrackPlay
 from backend.routers.auth import get_current_user
+from backend.music_providers import search_all_providers, resolve_yt_audio_stream, TOTAL_PROVIDER_COUNT
 
 router = APIRouter(prefix="/api/music", tags=["music"])
 
@@ -49,67 +50,21 @@ def search_tracks(q: str = ""):
     matches = [t for t in PUBLIC_CATALOG if query in t["title"].lower() or query in t["artist"].lower()]
     return {"tracks": matches}
 
+@router.get("/stream/yt/{video_id}")
+async def stream_yt_audio(video_id: str):
+    stream_url = await resolve_yt_audio_stream(video_id)
+    if not stream_url:
+        raise HTTPException(status_code=404, detail="Audio stream unavailable for this track.")
+    return RedirectResponse(url=stream_url, status_code=307)
+
 @router.get("/external-search")
-def external_search(q: str = "", limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+async def external_search(request: Request, q: str = "", limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     query = q.strip()
     if not query:
-        return {"tracks": []}
+        return {"tracks": [], "providers_count": TOTAL_PROVIDER_COUNT}
 
-    tracks = []
-    
-    # 1. Audius
-    try:
-        resp = httpx.get("https://api.audius.co/v1/tracks/search", params={"query": query, "app_name": "SyncRoom", "limit": limit, "offset": offset}, timeout=5.0)
-        if resp.status_code == 200:
-            data = resp.json()
-            for r in data.get("data", []):
-                if not r.get("is_streamable", False): continue
-                secs = r.get("duration", 0)
-                tracks.append({
-                    "id": f"audius-{r['id']}", "title": r.get("title", "Unknown"),
-                    "artist": r.get("user", {}).get("name", "Unknown Artist"),
-                    "duration": f"{secs // 60:02d}:{secs % 60:02d}",
-                    "src": f"https://api.audius.co/v1/tracks/{r['id']}/stream?app_name=SyncRoom",
-                    "cover": r.get("artwork", {}).get("480x480") or "/pixel-0.gif",
-                    "sourceLabel": "AUDIUS",
-                })
-    except Exception: pass
-
-    # 2. Deezer
-    if not tracks:
-        try:
-            resp = httpx.get("https://api.deezer.com/search", params={"q": query, "limit": limit, "index": offset}, timeout=5.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                for r in data.get("data", []):
-                    if not r.get("preview"): continue
-                    secs = r.get("duration", 0)
-                    tracks.append({
-                        "id": f"deezer-{r['id']}", "title": r.get("title", "Unknown"),
-                        "artist": r.get("artist", {}).get("name", "Unknown Artist"),
-                        "duration": f"{secs // 60:02d}:{secs % 60:02d}", "src": r.get("preview"),
-                        "cover": r.get("album", {}).get("cover_medium") or "/pixel-0.gif",
-                        "sourceLabel": "DEEZER",
-                    })
-        except Exception: pass
-
-    # 3. iTunes
-    if not tracks:
-        try:
-            resp = httpx.get("https://itunes.apple.com/search", params={"term": query, "media": "music", "entity": "song", "limit": limit, "offset": offset}, timeout=5.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                for r in data.get("results", []):
-                    if r.get("kind") != "song" or not r.get("previewUrl"): continue
-                    ms = r.get("trackTimeMillis") or 0
-                    tracks.append({
-                        "id": f"itunes-{r.get('trackId')}", "title": r.get("trackName", "Unknown"),
-                        "artist": r.get("artistName", "Unknown"),
-                        "duration": f"{ms // 60000:02d}:{(ms // 1000) % 60:02d}",
-                        "src": r.get("previewUrl"), "cover": r.get("artworkUrl100"),
-                        "sourceLabel": "ITUNES PREVIEW",
-                    })
-        except Exception: pass
+    api_base_url = str(request.base_url).rstrip("/")
+    tracks = await search_all_providers(query=query, limit=limit, offset=offset, api_base_url=api_base_url)
 
     q_clean = query.lower()
 
@@ -169,6 +124,10 @@ def external_search(q: str = "", limit: int = 50, offset: int = 0, db: Session =
         plays = item.get("play_count") or 0
 
         score = 0.0
+
+        # Prioritize full-length songs over 30-second previews
+        if item.get("is_full_song"):
+            score += 2000.0
 
         # Exact title match
         if title == q_clean:
