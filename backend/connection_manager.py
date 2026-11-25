@@ -28,6 +28,7 @@ class ConnectionManager:
         self.room_names: Dict[str, str] = {}
         self.room_ids: Dict[str, str] = {}
         self.room_kicked_users: Dict[str, List[Dict[str, str]]] = {}
+        self.room_queue_requests: Dict[str, List[Dict[str, Any]]] = {}
         self.room_playback_state: Dict[str, Dict[str, Any]] = {}
         self.room_chats: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -112,6 +113,7 @@ class ConnectionManager:
             self.room_names[room_code] = room_name.strip() if room_name and room_name.strip() else random.choice(RANDOM_ROOM_NAMES)
             self.room_ids[room_code] = room_id.strip().upper() if (room_id and room_id.strip()) else self.generate_unique_room_id()
             self.room_kicked_users[room_code] = []
+            self.room_queue_requests[room_code] = []
             self.room_chats[room_code] = []
         elif room_name and room_name.strip() and not self.room_names.get(room_code):
             self.room_names[room_code] = room_name.strip()
@@ -157,6 +159,7 @@ class ConnectionManager:
             "host": self.room_hosts.get(room_code),
             "listeners": self.room_members[room_code],
             "kicked_users": self.room_kicked_users.get(room_code, []),
+            "queue_requests": self.room_queue_requests.get(room_code, []),
             "server_time": now,
             "my_username": username,
             "chat_history": self.room_chats.get(room_code, []),
@@ -194,6 +197,8 @@ class ConnectionManager:
                     del self.room_ids[room_code]
                 if room_code in self.room_kicked_users:
                     del self.room_kicked_users[room_code]
+                if room_code in self.room_queue_requests:
+                    del self.room_queue_requests[room_code]
                 if room_code in self.room_playback_state:
                     del self.room_playback_state[room_code]
                 if room_code in self.room_chats:
@@ -279,8 +284,54 @@ class ConnectionManager:
                 pass
             return
 
+        # Handle Queue Song Requests (any room user can request, edit, or cancel their own pending request)
+        if action == "REQUEST_QUEUE_ADD":
+            track = data.get("track")
+            if isinstance(track, dict) and track.get("id"):
+                member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
+                sender_name = member["name"] if member else "Anonymous"
+                reqs = self.room_queue_requests.setdefault(room_code, [])
+                req_item = {
+                    "id": f"req-{int(now * 1000)}-{id(sender)}",
+                    "requester": sender_name,
+                    "requester_uid": member.get("user_id", "") if member else "",
+                    "track": track,
+                    "status": "pending",
+                    "created_at": now,
+                }
+                reqs.append(req_item)
+                if len(reqs) > 50:
+                    self.room_queue_requests[room_code] = reqs[-50:]
+                await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": self.room_queue_requests[room_code]})
+            return
+
+        if action == "EDIT_QUEUE_REQUEST":
+            req_id = data.get("request_id")
+            new_track = data.get("track")
+            if req_id and isinstance(new_track, dict) and new_track.get("id"):
+                member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
+                sender_name = member["name"] if member else ""
+                for r in self.room_queue_requests.get(room_code, []):
+                    if r["id"] == req_id and r["requester"] == sender_name and r["status"] == "pending":
+                        r["track"] = new_track
+                        break
+                await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": self.room_queue_requests.get(room_code, [])})
+            return
+
+        if action == "CANCEL_QUEUE_REQUEST":
+            req_id = data.get("request_id")
+            if req_id:
+                member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
+                sender_name = member["name"] if member else ""
+                self.room_queue_requests[room_code] = [
+                    r for r in self.room_queue_requests.get(room_code, [])
+                    if not (r["id"] == req_id and r["requester"] == sender_name)
+                ]
+                await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": self.room_queue_requests.get(room_code, [])})
+            return
+
         # Host-only controls: non-hosts cannot affect playback of the room
-        HOST_ONLY_ACTIONS = {"PLAY", "PAUSE", "SEEK", "CHANGE_TRACK", "CHANGE_WALLPAPER", "GIVE_LEADERSHIP", "KICK_USER", "ALLOW_USER"}
+        HOST_ONLY_ACTIONS = {"PLAY", "PAUSE", "SEEK", "CHANGE_TRACK", "CHANGE_WALLPAPER", "GIVE_LEADERSHIP", "KICK_USER", "ALLOW_USER", "RESOLVE_QUEUE_REQUEST"}
         
         if action in HOST_ONLY_ACTIONS:
             member = next((m for m in self.room_members.get(room_code, []) if m["id"] == id(sender)), None)
@@ -403,6 +454,20 @@ class ConnectionManager:
                 state["wallpaper"] = wallpaper
                 await self.broadcast(room_code, {"type": "SYNC_WALLPAPER", "wallpaper": wallpaper})
                 return
+        elif action == "RESOLVE_QUEUE_REQUEST":
+            req_id = data.get("request_id")
+            decision = data.get("decision")
+            reqs = self.room_queue_requests.get(room_code, [])
+            target_req = next((r for r in reqs if r["id"] == req_id and r["status"] == "pending"), None)
+            if target_req:
+                if decision == "accept":
+                    target_req["status"] = "accepted"
+                    state["queue"].append(target_req["track"])
+                    await self.broadcast(room_code, {"type": "SYNC_UPDATE_QUEUE", "state": state, "server_time": now})
+                else:
+                    target_req["status"] = "denied"
+                await self.broadcast(room_code, {"type": "QUEUE_REQUESTS_UPDATE", "queue_requests": reqs})
+            return
 
         await self.broadcast(room_code, {"type": f"SYNC_{action}", "state": state, "server_time": now}, exclude=sender)
 
