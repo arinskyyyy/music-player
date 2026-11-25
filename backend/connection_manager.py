@@ -1,3 +1,4 @@
+import asyncio
 import random
 import time
 from typing import Dict, List, Any
@@ -33,6 +34,8 @@ class ConnectionManager:
         self.room_queue_requests: Dict[str, List[Dict[str, Any]]] = {}
         self.room_playback_state: Dict[str, Dict[str, Any]] = {}
         self.room_chats: Dict[str, List[Dict[str, Any]]] = {}
+        self._pending_room_cleanups: Dict[str, asyncio.Task] = {}
+        self._pending_host_transfers: Dict[str, asyncio.Task] = {}
 
     def get_or_create_state(self, room_code: str) -> Dict[str, Any]:
         if room_code not in self.room_playback_state:
@@ -103,7 +106,7 @@ class ConnectionManager:
             finally:
                 db.close()
         else:
-            # Joining: require an active room that was newly created
+            # Joining: require an active room that was newly created (or within refresh grace period)
             if room_code not in self.active_rooms:
                 await websocket.accept()
                 await websocket.send_json({
@@ -112,6 +115,17 @@ class ConnectionManager:
                 })
                 await websocket.close(code=1008)
                 return
+
+        # Cancel pending cleanup if user reconnected within the refresh grace period
+        cleanup_task = self._pending_room_cleanups.pop(room_code, None)
+        if cleanup_task:
+            cleanup_task.cancel()
+
+        # Cancel pending host transfer if the host reconnected within the refresh grace period
+        if username.strip().lower() == (self.room_hosts.get(room_code) or "").lower():
+            host_task = self._pending_host_transfers.pop(room_code, None)
+            if host_task:
+                host_task.cancel()
 
         # Enforce kick/ban list: kicked users cannot rejoin unless allowed by host
         kicked_list = self.room_kicked_users.get(room_code, [])
@@ -237,6 +251,52 @@ class ConnectionManager:
         if join_msg:
             await self.broadcast(room_code, {"type": "CHAT_MESSAGE", "message": join_msg}, exclude=websocket)
 
+    async def _delayed_room_cleanup(self, room_code: str, delay: float = 15.0):
+        try:
+            await asyncio.sleep(delay)
+            if room_code in self.active_rooms and not self.active_rooms[room_code]:
+                del self.active_rooms[room_code]
+                del self.room_members[room_code]
+                self.room_hosts.pop(room_code, None)
+                self.room_names.pop(room_code, None)
+                self.room_ids.pop(room_code, None)
+                self.room_kicked_users.pop(room_code, None)
+                self.room_queue_requests.pop(room_code, None)
+                self.room_playback_state.pop(room_code, None)
+                self.room_chats.pop(room_code, None)
+                self._delete_room_from_db(room_code)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._pending_room_cleanups.pop(room_code, None)
+
+    async def _delayed_host_transfer(self, room_code: str, departing_host: str, delay: float = 15.0):
+        try:
+            await asyncio.sleep(delay)
+            members = self.room_members.get(room_code, [])
+            if members and (self.room_hosts.get(room_code) or "").lower() == departing_host.lower():
+                still_here = any(m["name"].lower() == departing_host.lower() for m in members)
+                if not still_here:
+                    new_host = members[0]["name"]
+                    self.room_hosts[room_code] = new_host
+                    for m in members:
+                        m["is_host"] = (m["name"] == new_host)
+                    await self.broadcast(
+                        room_code,
+                        {
+                            "type": "HOST_UPDATE",
+                            "room_id": self.room_ids.get(room_code, ""),
+                            "room_name": self.room_names.get(room_code, "Stereo Lounge"),
+                            "host": new_host,
+                            "listeners": members,
+                            "kicked_users": self.room_kicked_users.get(room_code, []),
+                        },
+                    )
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._pending_host_transfers.pop(room_code, None)
+
     def disconnect(self, websocket: WebSocket, room_code: str):
         if room_code in self.active_rooms:
             now = time.time()
@@ -246,23 +306,14 @@ class ConnectionManager:
             self.room_members[room_code] = [m for m in self.room_members.get(room_code, []) if m["id"] != id(websocket)]
 
             if not self.active_rooms[room_code]:
-                del self.active_rooms[room_code]
-                del self.room_members[room_code]
-                if room_code in self.room_hosts:
-                    del self.room_hosts[room_code]
-                if room_code in self.room_names:
-                    del self.room_names[room_code]
-                if room_code in self.room_ids:
-                    del self.room_ids[room_code]
-                if room_code in self.room_kicked_users:
-                    del self.room_kicked_users[room_code]
-                if room_code in self.room_queue_requests:
-                    del self.room_queue_requests[room_code]
-                if room_code in self.room_playback_state:
-                    del self.room_playback_state[room_code]
-                if room_code in self.room_chats:
-                    del self.room_chats[room_code]
-                self._delete_room_from_db(room_code)
+                # Grace period so refreshing the page does not destroy the room
+                existing = self._pending_room_cleanups.pop(room_code, None)
+                if existing:
+                    existing.cancel()
+                try:
+                    self._pending_room_cleanups[room_code] = asyncio.create_task(self._delayed_room_cleanup(room_code))
+                except RuntimeError:
+                    pass
             else:
                 if leaving_member:
                     leaving_name = leaving_member.get("name", "Someone")
@@ -277,19 +328,22 @@ class ConnectionManager:
                         self.room_chats[room_code].append(leave_msg)
                         if len(self.room_chats[room_code]) > 100:
                             self.room_chats[room_code] = self.room_chats[room_code][-100:]
-                    # Note: broadcast is async, so in disconnect where loop might be closing, ignore errors
                     for conn in self.active_rooms.get(room_code, []):
                         try:
-                            import asyncio
                             asyncio.create_task(conn.send_json({"type": "CHAT_MESSAGE", "message": leave_msg}))
                         except Exception:
                             pass
 
-                if leaving_member and leaving_member.get("name") == self.room_hosts.get(room_code):
-                    new_host = self.room_members[room_code][0]["name"]
-                    self.room_hosts[room_code] = new_host
-                    for m in self.room_members[room_code]:
-                        m["is_host"] = (m["name"] == new_host)
+                if leaving_member and leaving_member.get("name", "").lower() == (self.room_hosts.get(room_code) or "").lower():
+                    existing_ht = self._pending_host_transfers.pop(room_code, None)
+                    if existing_ht:
+                        existing_ht.cancel()
+                    try:
+                        self._pending_host_transfers[room_code] = asyncio.create_task(
+                            self._delayed_host_transfer(room_code, leaving_member.get("name", ""))
+                        )
+                    except RuntimeError:
+                        pass
 
     async def broadcast(self, room_code: str, message: dict, exclude: WebSocket = None):
         if room_code in self.active_rooms:
