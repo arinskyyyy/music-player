@@ -2,11 +2,21 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.database import engine, Base
+from backend.database import engine, Base, SessionLocal
+from backend.models import Room
 from backend.connection_manager import manager
 from backend.routers import auth, music, user
 
 Base.metadata.create_all(bind=engine)
+
+# Clear any orphaned rooms from previous server runs (0 active listeners)
+try:
+    _db = SessionLocal()
+    _db.query(Room).delete()
+    _db.commit()
+    _db.close()
+except Exception:
+    pass
 
 app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, description="SyncRoom Audio API")
 
