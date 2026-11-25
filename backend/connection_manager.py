@@ -2,6 +2,8 @@ import random
 import time
 from typing import Dict, List, Any
 from fastapi import WebSocket
+from backend.database import SessionLocal
+from backend.models import Room
 
 MAX_ROOM_CAPACITY = 20
 
@@ -42,40 +44,74 @@ class ConnectionManager:
 
     def generate_unique_code(self) -> str:
         chars = "0123456789abcdef"
-        while True:
-            code = "".join(random.choice(chars) for _ in range(8))
-            if code not in self.active_rooms:
-                return code
+        db = SessionLocal()
+        try:
+            while True:
+                code = "".join(random.choice(chars) for _ in range(8))
+                if code not in self.active_rooms and not db.query(Room).filter(Room.code == code).first():
+                    return code
+        finally:
+            db.close()
 
     def generate_unique_room_id(self) -> str:
         chars = "0123456789ABCDEF"
         existing_ids = set(self.room_ids.values())
-        while True:
-            rid = "RM-" + "".join(random.choice(chars) for _ in range(8))
-            if rid not in existing_ids:
-                return rid
+        db = SessionLocal()
+        try:
+            while True:
+                rid = "RM-" + "".join(random.choice(chars) for _ in range(8))
+                if rid not in existing_ids and not db.query(Room).filter(Room.room_uid == rid).first():
+                    return rid
+        finally:
+            db.close()
+
+    def _delete_room_from_db(self, room_code: str):
+        db = SessionLocal()
+        try:
+            db.query(Room).filter(Room.code == room_code).delete()
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
 
     async def connect(self, websocket: WebSocket, room_code: str, username: str = "Anonymous", room_name: str = "", is_create: bool = False, user_id: str = "", room_id: str = ""):
-        # Enforce unique room code & unique RoomID when creating a new room
+        # Enforce unique room code & unique RoomID in DB and memory when creating a new room
         if is_create:
-            if room_code in self.active_rooms:
-                await websocket.accept()
-                await websocket.send_json({
-                    "type": "ROOM_ERROR",
-                    "detail": f"Room code #{room_code} is already taken."
-                })
-                await websocket.close(code=1008)
-                return
-            if room_id and room_id.strip():
-                clean_rid = room_id.strip().upper()
-                if clean_rid in self.room_ids.values():
+            db = SessionLocal()
+            try:
+                existing_code = (room_code in self.active_rooms) or bool(db.query(Room).filter(Room.code == room_code).first())
+                if existing_code:
                     await websocket.accept()
                     await websocket.send_json({
                         "type": "ROOM_ERROR",
-                        "detail": f"A room already exists with the same RoomID ({clean_rid})."
+                        "detail": f"Room code #{room_code} is already taken."
                     })
                     await websocket.close(code=1008)
                     return
+                if room_id and room_id.strip():
+                    clean_rid = room_id.strip().upper()
+                    existing_rid = (clean_rid in self.room_ids.values()) or bool(db.query(Room).filter(Room.room_uid == clean_rid).first())
+                    if existing_rid:
+                        await websocket.accept()
+                        await websocket.send_json({
+                            "type": "ROOM_ERROR",
+                            "detail": f"A room already exists with the same RoomID ({clean_rid})."
+                        })
+                        await websocket.close(code=1008)
+                        return
+            finally:
+                db.close()
+        else:
+            # Joining: require an active room that was newly created
+            if room_code not in self.active_rooms:
+                await websocket.accept()
+                await websocket.send_json({
+                    "type": "ROOM_ERROR",
+                    "detail": f"Room #{room_code} does not exist or has already closed."
+                })
+                await websocket.close(code=1008)
+                return
 
         # Enforce kick/ban list: kicked users cannot rejoin unless allowed by host
         kicked_list = self.room_kicked_users.get(room_code, [])
@@ -107,43 +143,65 @@ class ConnectionManager:
         now = time.time()
 
         if room_code not in self.active_rooms:
+            final_name = room_name.strip() if room_name and room_name.strip() else random.choice(RANDOM_ROOM_NAMES)
+            final_rid = room_id.strip().upper() if (room_id and room_id.strip()) else self.generate_unique_room_id()
             self.active_rooms[room_code] = []
             self.room_members[room_code] = []
             self.room_hosts[room_code] = username
-            self.room_names[room_code] = room_name.strip() if room_name and room_name.strip() else random.choice(RANDOM_ROOM_NAMES)
-            self.room_ids[room_code] = room_id.strip().upper() if (room_id and room_id.strip()) else self.generate_unique_room_id()
+            self.room_names[room_code] = final_name
+            self.room_ids[room_code] = final_rid
             self.room_kicked_users[room_code] = []
             self.room_queue_requests[room_code] = []
             self.room_chats[room_code] = []
+
+            db = SessionLocal()
+            try:
+                db.add(Room(room_uid=final_rid, code=room_code, name=final_name))
+                db.commit()
+            except Exception:
+                db.rollback()
+            finally:
+                db.close()
         elif room_name and room_name.strip() and not self.room_names.get(room_code):
             self.room_names[room_code] = room_name.strip()
 
-        base_username = username
-        counter = 1
-        existing_names = [m["name"] for m in self.room_members[room_code]]
-        while username in existing_names:
-            username = f"{base_username}_{counter}"
-            counter += 1
+        # Replace any stale/duplicate connection for the same user instead of appending _1
+        clean_username = username.strip() or "Anonymous"
+        stale_members = [
+            m for m in self.room_members[room_code]
+            if (user_id and m.get("user_id") == user_id) or (m.get("name", "").lower() == clean_username.lower())
+        ]
+        for stale in stale_members:
+            stale_ws = next((ws for ws in self.active_rooms[room_code] if id(ws) == stale["id"]), None)
+            if stale_ws:
+                self.active_rooms[room_code].remove(stale_ws)
+                try:
+                    await stale_ws.close(code=1000)
+                except Exception:
+                    pass
+            self.room_members[room_code] = [m for m in self.room_members[room_code] if m["id"] != stale["id"]]
 
         if not self.room_hosts.get(room_code):
-            self.room_hosts[room_code] = username
-        is_host = (self.room_hosts.get(room_code) == username)
-        member_info = {"id": id(websocket), "name": username, "user_id": user_id, "is_host": is_host}
+            self.room_hosts[room_code] = clean_username
+        is_host = (self.room_hosts.get(room_code, "").lower() == clean_username.lower())
+        member_info = {"id": id(websocket), "name": clean_username, "user_id": user_id, "is_host": is_host}
         self.active_rooms[room_code].append(websocket)
         self.room_members[room_code].append(member_info)
 
-        # Notify room of user join via chat
-        join_msg = {
-            "id": f"sys-{now}-{len(self.room_members[room_code])}",
-            "sender": "SYSTEM",
-            "text": f"{username} joined the room.",
-            "timestamp": now,
-            "is_system": True,
-        }
-        if room_code in self.room_chats:
-            self.room_chats[room_code].append(join_msg)
-            if len(self.room_chats[room_code]) > 100:
-                self.room_chats[room_code] = self.room_chats[room_code][-100:]
+        # Notify room of user join via chat (only if not a silent reconnect replacing stale ws)
+        join_msg = None
+        if not stale_members:
+            join_msg = {
+                "id": f"sys-{now}-{len(self.room_members[room_code])}",
+                "sender": "SYSTEM",
+                "text": f"{clean_username} joined the room.",
+                "timestamp": now,
+                "is_system": True,
+            }
+            if room_code in self.room_chats:
+                self.room_chats[room_code].append(join_msg)
+                if len(self.room_chats[room_code]) > 100:
+                    self.room_chats[room_code] = self.room_chats[room_code][-100:]
 
         state = self.get_or_create_state(room_code)
         computed_time = state["current_time"]
@@ -161,7 +219,7 @@ class ConnectionManager:
             "kicked_users": self.room_kicked_users.get(room_code, []),
             "queue_requests": self.room_queue_requests.get(room_code, []),
             "server_time": now,
-            "my_username": username,
+            "my_username": clean_username,
             "chat_history": self.room_chats.get(room_code, []),
         })
         await self.broadcast(
@@ -176,7 +234,8 @@ class ConnectionManager:
             },
             exclude=websocket,
         )
-        await self.broadcast(room_code, {"type": "CHAT_MESSAGE", "message": join_msg}, exclude=websocket)
+        if join_msg:
+            await self.broadcast(room_code, {"type": "CHAT_MESSAGE", "message": join_msg}, exclude=websocket)
 
     def disconnect(self, websocket: WebSocket, room_code: str):
         if room_code in self.active_rooms:
@@ -203,6 +262,7 @@ class ConnectionManager:
                     del self.room_playback_state[room_code]
                 if room_code in self.room_chats:
                     del self.room_chats[room_code]
+                self._delete_room_from_db(room_code)
             else:
                 if leaving_member:
                     leaving_name = leaving_member.get("name", "Someone")
