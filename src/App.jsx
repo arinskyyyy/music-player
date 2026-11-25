@@ -77,9 +77,7 @@ function PixelGearIcon() {
 export default function App() {
   const [selectedMedia] = useState(() => getNonRepeatingMedia(PIXEL_MEDIA));
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [showAudioPrompt, setShowAudioPrompt] = useState(() => {
-    try { return localStorage.getItem("syncroom_audio_permitted") !== "true"; } catch { return true; }
-  });
+  const [showAudioPrompt, setShowAudioPrompt] = useState(false);
 
   const [user, setUser] = useState(() => {
     try {
@@ -436,7 +434,6 @@ export default function App() {
   };
 
   const handlePermitAudio = () => {
-    try { localStorage.setItem("syncroom_audio_permitted", "true"); } catch { /* ignore */ }
     setShowAudioPrompt(false);
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -445,9 +442,13 @@ export default function App() {
         if (ctx.state === "suspended") ctx.resume().catch(() => {});
       }
     } catch { /* ignore */ }
+    if (audioRef.current && currentTrack?.src) {
+      if (!audioRef.current.src) audioRef.current.src = currentTrack.src;
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
   };
 
-  const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setShowAudioPrompt(false); }).catch(() => {}); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
+  const handleRemotePlay = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined && Math.abs(audioRef.current.currentTime - serverTime) > 1.2) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.play().then(() => { setIsPlaying(true); setShowAudioPrompt(false); }).catch(() => { setShowAudioPrompt(true); }); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   const handleRemotePause = useCallback((serverTime) => { isRemoteAction.current = true; if (audioRef.current) { if (serverTime !== undefined) { audioRef.current.currentTime = serverTime; setCurrentTime(serverTime); } audioRef.current.pause(); setIsPlaying(false); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   const handleRemoteSeek = useCallback((seekTime) => { isRemoteAction.current = true; if (audioRef.current && Math.abs(audioRef.current.currentTime - seekTime) > 0.5) { audioRef.current.currentTime = seekTime; setCurrentTime(seekTime); } setTimeout(() => { isRemoteAction.current = false; }, 150); }, []);
   
@@ -541,7 +542,9 @@ export default function App() {
           setIsPlaying(true);
           setShowAudioPrompt(false);
           setIsLocallyPaused(false);
-        }).catch(() => {});
+        }).catch(() => {
+          setShowAudioPrompt(true);
+        });
       } else {
         audioRef.current?.pause();
         setIsPlaying(false);
@@ -884,7 +887,7 @@ export default function App() {
     <>
       <audio ref={audioRef} preload="auto" onTimeUpdate={handleTimeUpdate} onLoadedMetadata={handleLoadedMetadata} onEnded={handleAudioEnded} onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} onError={(e) => console.warn("[SyncRoom Audio] Playback error:", e)} />
 
-      {showAudioPrompt && (
+      {isAuthenticated && showAudioPrompt && (
         <div
           style={{ backgroundColor: surfaceBg === "#000000" ? "#141414" : "#f5f5f5", color: effectiveTextColor }}
           className="fixed top-3 left-3 z-[60] flex items-center gap-2.5 rounded-xl border border-neutral-800 px-3 py-2 text-xs shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
