@@ -1233,7 +1233,7 @@ export default function App() {
           <header style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="z-20 flex h-16 shrink-0 items-start justify-between px-4 pt-2.5 sm:px-6">
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => setIsMobileOpen(true)} className="pixel-btn flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 font-medium md:hidden">☰</button>
-              <span className="text-3xl font-semibold leading-none tracking-tight">Illusion</span>
+              <span className="text-2xl sm:text-3xl font-semibold leading-none tracking-tight">Illusion</span>
             </div>
 
             <div className="mt-1.5 flex items-center gap-2 sm:gap-3">
@@ -1247,7 +1247,7 @@ export default function App() {
             </div>
           </header>
 
-          <div className="relative flex flex-1 overflow-hidden">
+          <div className="relative flex flex-1 overflow-hidden min-h-0">
             <Sidebar
               user={user} roomCode={roomCode} roomId={roomId} roomName={roomName} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setActiveView("workspace"); }}
               listeners={listeners} kickedUsers={kickedUsers} currentHost={currentHost} isInRoom={isInRoom} onOpenSettings={() => setActiveView("settings")}
@@ -1258,7 +1258,7 @@ export default function App() {
             {activeView === "settings" ? (
               <main key="settings-panel" style={{ backgroundColor: surfaceBg, color: effectiveTextColor }} className="auth-soft-enter flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
                 <div className="flex flex-col gap-8 max-w-3xl pb-10">
-                  <div className="flex items-center justify-between pb-2 border-b border-neutral-800/70">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-neutral-800/70">
                     <div><p className="text-[10px] opacity-50">ACCOUNT & PREFERENCES</p><h2 className="text-xl font-medium sm:text-2xl">Settings</h2></div>
                     <div className="flex items-center gap-2">
                       <button type="button" onClick={() => { setThemeMode("black"); setBgColor("#000000"); setSiteColor("#ffffff"); setTextColor("#ffffff"); }} className="pixel-btn rounded-lg bg-neutral-900/60 px-3 py-1.5 text-xs font-medium hover:bg-neutral-800 transition-colors duration-200">Reset theme</button>
