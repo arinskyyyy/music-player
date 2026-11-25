@@ -105,7 +105,6 @@ export function useRoomSocket({
                 if (data.kicked_users) cbs.onKickedUsersUpdate?.(data.kicked_users);
                 if (data.queue_requests) cbs.onQueueRequestsUpdate?.(data.queue_requests);
                 if (data.chat_history) cbs.onChatHistory?.(data.chat_history);
-                if (data.my_username) localStorage.setItem("syncroom_active_username", data.my_username);
                 if (data.state) {
                   if (data.state.wallpaper) cbs.onWallpaperUpdate?.(data.state.wallpaper);
                   if (data.state.track) cbs.onSyncChangeTrack?.(data.state.track, data.state);
