@@ -1252,8 +1252,13 @@ export default function TrackList({
                     <div className="border-t border-neutral-800/70 pt-3">
                       <p className="text-[10px] font-medium opacity-50 mb-2">REQUESTS SENT</p>
                       {(() => {
-                        const myName = (localStorage.getItem("syncroom_active_username") || user?.username || "").toLowerCase();
-                        const myReqs = queueRequests.filter((r) => (r.requester || "").toLowerCase() === myName);
+                        const myName = (user?.username || "").toLowerCase();
+                        const myUid = user?.uid || "";
+                        const myReqs = queueRequests.filter(
+                          (r) =>
+                            (myUid && r.requester_uid && r.requester_uid === myUid) ||
+                            (r.requester || "").toLowerCase() === myName
+                        );
                         if (myReqs.length === 0) {
                           return <p className="text-xs opacity-50">You haven&apos;t sent any song requests yet.</p>;
                         }
